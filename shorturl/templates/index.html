@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Генератор коротких ссылок</title>
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+        }
+
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        a:hover {
+            color: white;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        header {
+            background-color: #007bff;
+            color: white;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            font-size: 24px;
+            font-weight: bold;
+            user-select: none;
+            flex-shrink: 0;
+            justify-content: space-between;
+        }
+
+        label {
+            font-size: 16px;
+            padding: 12px 24px;
+            border: none;
+            background-color: white;
+            color: #007bff;
+            border-radius: 24px;
+            cursor: pointer;
+            user-select: none;
+            flex-shrink: 0;
+            transition: background-color 0.2s ease;
+        }
+
+        main {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            display: flex;
+            align-items: center;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            width: 1000px;
+        }
+
+        input[type="url"], input[type="text"] {
+            flex-grow: 1;
+            font-size: 16px;
+            padding: 12px 16px;
+            border: 1px solid #ccc;
+            border-radius: 24px;
+            outline: none;
+            margin-right: 12px;
+            min-width: 0;
+        }
+
+        input[type="url"]:focus, input[type="text"]:focus {
+            border-color: #007bff;
+        }
+
+        button {
+            font-size: 16px;
+            padding: 12px 24px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            border-radius: 24px;
+            cursor: pointer;
+            user-select: none;
+            flex-shrink: 0;
+            transition: background-color 0.2s ease;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <a href="/">ShortUrl</a>
+    <form action="/shorten/batchSave" method="POST" enctype="multipart/form-data">
+        <label for="import" style="margin-left: auto; cursor: pointer;">Загрузить короткие ссылки</label>
+        <input id="import" name="import" type="file" accept="application/json" title="Импорт ссылок"
+               style="display: none"/>
+    </form>
+</header>
+<main>
+    <form class="container" action="/shorten/create" method="POST">
+        <input type="url" name="long_url" placeholder="Вставьте длинную ссылку" required/>
+        <input type="text" name="short_url" placeholder="Вставьте короткую ссылку" required/>
+        <button type="submit">Получить ссылку</button>
+    </form>
+</main>
+</body>
+</html>
+
+<script>
+    const importInput = document.getElementById('import');
+    const importForm = importInput.form;
+
+    importInput.addEventListener('change', () => {
+        if (importInput.files.length > 0) {
+            importForm.requestSubmit();
+            importForm.reset();
+        }
+    });
+</script>

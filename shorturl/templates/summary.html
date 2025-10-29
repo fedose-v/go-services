@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Короткая ссылка</title>
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+        }
+
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        a:focus {
+            color: white;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        header {
+            background-color: #007bff;
+            color: white;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            padding-left: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        main {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            display: flex;
+            align-items: center;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            width: 600px;
+        }
+
+        input[type="text"] {
+            flex-grow: 1;
+            font-size: 16px;
+            padding: 12px 16px;
+            border: 1px solid #ccc;
+            border-radius: 24px;
+            outline: none;
+            margin-right: 12px;
+            min-width: 0;
+            user-select: all;
+        }
+
+        button {
+            font-size: 16px;
+            padding: 12px 24px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            border-radius: 24px;
+            cursor: pointer;
+            user-select: none;
+            flex-shrink: 0;
+            transition: background-color 0.2s ease;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .message {
+            position: fixed;
+            top: 65px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #28a745;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            user-select: none;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <a href="/">ShortUrl</a>
+</header>
+<main>
+    <div class="container">
+        <input type="text" id="shortLink" readonly value="127.0.0.1:8080/{{.ShortUrl}}"/>
+        <button id="copyBtn">Скопировать</button>
+    </div>
+</main>
+<div id="msg" class="message">Ссылка скопирована!</div>
+
+<script>
+    const copyBtn = document.getElementById('copyBtn');
+    const shortLinkInput = document.getElementById('shortLink');
+    const msg = document.getElementById('msg');
+
+    copyBtn.addEventListener('click', () => {
+        shortLinkInput.select();
+
+        navigator.clipboard.writeText(shortLinkInput.value).then(() => {
+            if (window.getSelection) {
+                window.getSelection().removeAllRanges();
+            } else if (document.selection) {
+                document.selection.empty();
+            }
+
+            msg.classList.add('show');
+            setTimeout(() => {
+                msg.classList.remove('show');
+            }, 1500);
+        }).catch(() => {
+            alert('Не удалось скопировать ссылку');
+        });
+    });
+</script>
+</body>
+</html>
