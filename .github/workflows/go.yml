@@ -24,7 +24,8 @@ jobs:
       with:
         go-version: ${{ matrix.go-version }}
 
-    - name: Test ${{ matrix.service }}
+    - name: Tidy and test ${{ matrix.service }}
       run: |
         cd ${{ matrix.service }}
+        go mod tidy
         go test ./... -v -race -coverprofile=coverage.out
