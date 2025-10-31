@@ -7,14 +7,9 @@ on:
     branches: [ master ]
 
 jobs:
-  test-services:
-    name: Test Services
+  test-user:
+    name: Test User Service
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service: [user, inventory]
-        go-version: [1.25]
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -22,10 +17,36 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: ${{ matrix.go-version }}
+        go-version: '1.25'
 
-    - name: Tidy and test ${{ matrix.service }}
+    - name: Tidy dependencies for user
       run: |
-        cd ${{ matrix.service }}
+        cd user
         go mod tidy
+
+    - name: Run tests for user
+      run: |
+        cd user
+        go test ./pkg/... -v -race -coverprofile=coverage.out
+
+  test-inventory:
+    name: Test Inventory Service
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.25'
+
+    - name: Tidy dependencies for inventory
+      run: |
+        cd inventory
+        go mod tidy
+
+    - name: Run tests for inventory
+      run: |
+        cd inventory
         go test ./pkg/... -v -race -coverprofile=coverage.out
