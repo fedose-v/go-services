@@ -56,6 +56,14 @@ func TestProductService(t *testing.T) {
 	})
 	eventDispatcher.Reset()
 
+	t.Run("Increase non existed product quantity", func(t *testing.T) {
+		err := productService.IncreaseQuantity(uuid.New(), 10)
+		require.ErrorIs(t, err, model.ErrProductNotFound)
+
+		require.Len(t, eventDispatcher.events, 0)
+	})
+	eventDispatcher.Reset()
+
 	t.Run("Decrease product quantity", func(t *testing.T) {
 		productID, err := productService.CreateProduct(name, quantity, price)
 		require.NoError(t, err)
@@ -86,6 +94,14 @@ func TestProductService(t *testing.T) {
 		require.Equal(t, 24.9, repo.store[productID].Price)
 		require.Len(t, eventDispatcher.events, 1)
 		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.events[0].Type())
+	})
+	eventDispatcher.Reset()
+
+	t.Run("Decrease non existed product quantity", func(t *testing.T) {
+		err := productService.DecreaseQuantity(uuid.New(), 10)
+		require.ErrorIs(t, err, model.ErrProductNotFound)
+
+		require.Len(t, eventDispatcher.events, 0)
 	})
 	eventDispatcher.Reset()
 
