@@ -1,4 +1,4 @@
-# MicroserviceTemplate
+# Inventory Service
 
 Для сборки:
 ```bash

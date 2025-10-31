@@ -1,7 +1,7 @@
 .idea/
 /vendor/
 
-bin/microservicetemplate
+bin/inventory
 !bin/
 
 .env

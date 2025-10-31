@@ -1,20 +1,33 @@
-package domain
+package model
 
-import "github.com/google/uuid"
+import (
+	"time"
+	
+	"github.com/google/uuid"
+)
 
 type ProductCreated struct {
-	ID   uuid.UUID
-	Name string
+	ID        uuid.UUID
+	Name      string
+	CreatedAt time.Time
 }
 
 func (e ProductCreated) Type() string {
 	return "ProductCreated"
 }
 
+type ProductDeleted struct {
+	ID uuid.UUID
+}
+
+func (e ProductDeleted) Type() string {
+	return "ProductDeleted"
+}
+
 type ProductQuantityChanged struct {
 	ID           uuid.UUID
-	PrevQuantity int
 	NewQuantity  int
+	PrevQuantity int
 }
 
 func (e ProductQuantityChanged) Type() string {
