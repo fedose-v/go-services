@@ -31,8 +31,8 @@ func TestProductService(t *testing.T) {
 		require.Equal(t, repo.store[productID].Name, "Test Product")
 		require.Equal(t, repo.store[productID].Quantity, 1)
 		require.Equal(t, repo.store[productID].Price, 24.9)
-		require.Len(t, eventDispatcher.events, 1)
-		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.events[0].Type())
+		require.Len(t, eventDispatcher.ListEvents(), 1)
+		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.ListEvents()[0].Type())
 	})
 	eventDispatcher.Reset()
 
@@ -47,9 +47,9 @@ func TestProductService(t *testing.T) {
 		require.Equal(t, repo.store[productID].Name, "Test Product")
 		require.Equal(t, repo.store[productID].Quantity, 11)
 		require.Equal(t, repo.store[productID].Price, 24.9)
-		require.Len(t, eventDispatcher.events, 2)
-		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.events[0].Type())
-		require.Equal(t, model.ProductQuantityChanged{}.Type(), eventDispatcher.events[1].Type())
+		require.Len(t, eventDispatcher.ListEvents(), 2)
+		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.ListEvents()[0].Type())
+		require.Equal(t, model.ProductQuantityChanged{}.Type(), eventDispatcher.ListEvents()[1].Type())
 	})
 	eventDispatcher.Reset()
 
@@ -64,9 +64,9 @@ func TestProductService(t *testing.T) {
 		require.Equal(t, repo.store[productID].Name, "Test Product")
 		require.Equal(t, repo.store[productID].Quantity, 0)
 		require.Equal(t, repo.store[productID].Price, 24.9)
-		require.Len(t, eventDispatcher.events, 2)
-		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.events[0].Type())
-		require.Equal(t, model.ProductQuantityChanged{}.Type(), eventDispatcher.events[1].Type())
+		require.Len(t, eventDispatcher.ListEvents(), 2)
+		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.ListEvents()[0].Type())
+		require.Equal(t, model.ProductQuantityChanged{}.Type(), eventDispatcher.ListEvents()[1].Type())
 	})
 	eventDispatcher.Reset()
 
@@ -81,8 +81,8 @@ func TestProductService(t *testing.T) {
 		require.Equal(t, repo.store[productID].Name, "Test Product")
 		require.Equal(t, repo.store[productID].Quantity, 1)
 		require.Equal(t, repo.store[productID].Price, 24.9)
-		require.Len(t, eventDispatcher.events, 1)
-		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.events[0].Type())
+		require.Len(t, eventDispatcher.ListEvents(), 1)
+		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.ListEvents()[0].Type())
 	})
 	eventDispatcher.Reset()
 
@@ -94,9 +94,9 @@ func TestProductService(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Nil(t, repo.store[productID])
-		require.Len(t, eventDispatcher.events, 2)
-		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.events[0].Type())
-		require.Equal(t, model.ProductDeleted{}.Type(), eventDispatcher.events[1].Type())
+		require.Len(t, eventDispatcher.ListEvents(), 2)
+		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.ListEvents()[0].Type())
+		require.Equal(t, model.ProductDeleted{}.Type(), eventDispatcher.ListEvents()[1].Type())
 	})
 	eventDispatcher.Reset()
 
@@ -105,7 +105,7 @@ func TestProductService(t *testing.T) {
 		err := productService.DeleteProduct(newID)
 		require.ErrorIs(t, err, model.ErrProductNotFound)
 
-		require.Len(t, eventDispatcher.events, 0)
+		require.Len(t, eventDispatcher.ListEvents(), 0)
 	})
 	eventDispatcher.Reset()
 }
@@ -153,6 +153,7 @@ func (m mockProductRepository) Delete(id uuid.UUID) error {
 type MockEventDispatcher interface {
 	event.Dispatcher
 	Reset()
+	ListEvents() []event.Event
 }
 
 var _ MockEventDispatcher = &mockEventDispatcher{}
@@ -163,6 +164,10 @@ type mockEventDispatcher struct {
 
 func (m mockEventDispatcher) Reset() {
 	m.events = nil
+}
+
+func (m mockEventDispatcher) ListEvents() []event.Event {
+	return m.events
 }
 
 func (m mockEventDispatcher) Dispatch(event event.Event) error {
