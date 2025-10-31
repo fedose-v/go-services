@@ -26,6 +26,6 @@ type ProductRepository interface {
 	NextID() (uuid.UUID, error)
 	Store(product *Product) error
 	Find(id uuid.UUID) (*Product, error)
-	List() (*[]Product, error)
+	List() ([]Product, error)
 	Delete(id uuid.UUID) error
 }

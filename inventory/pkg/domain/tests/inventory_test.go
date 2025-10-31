@@ -14,25 +14,28 @@ import (
 
 func TestProductService(t *testing.T) {
 	repo := &mockProductRepository{
-		store: map[uuid.UUID]*model.Product{},
+		store: make(map[uuid.UUID]*model.Product),
 	}
-	eventDispatcher := &mockEventDispatcher{}
+	eventDispatcher := &mockEventDispatcher{
+		events: make([]event.Event, 0),
+	}
 
 	productService := service.NewProductService(repo, eventDispatcher)
 
 	name := "Test Product"
 	quantity := 1
 	price := 24.9
+
 	t.Run("Create product", func(t *testing.T) {
 		productID, err := productService.CreateProduct(name, quantity, price)
 		require.NoError(t, err)
 
 		require.NotNil(t, repo.store[productID])
-		require.Equal(t, repo.store[productID].Name, "Test Product")
-		require.Equal(t, repo.store[productID].Quantity, 1)
-		require.Equal(t, repo.store[productID].Price, 24.9)
-		require.Len(t, eventDispatcher.ListEvents(), 1)
-		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.ListEvents()[0].Type())
+		require.Equal(t, "Test Product", repo.store[productID].Name)
+		require.Equal(t, 1, repo.store[productID].Quantity)
+		require.Equal(t, 24.9, repo.store[productID].Price)
+		require.Len(t, eventDispatcher.events, 1)
+		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.events[0].Type())
 	})
 	eventDispatcher.Reset()
 
@@ -44,12 +47,12 @@ func TestProductService(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NotNil(t, repo.store[productID])
-		require.Equal(t, repo.store[productID].Name, "Test Product")
-		require.Equal(t, repo.store[productID].Quantity, 11)
-		require.Equal(t, repo.store[productID].Price, 24.9)
-		require.Len(t, eventDispatcher.ListEvents(), 2)
-		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.ListEvents()[0].Type())
-		require.Equal(t, model.ProductQuantityChanged{}.Type(), eventDispatcher.ListEvents()[1].Type())
+		require.Equal(t, "Test Product", repo.store[productID].Name)
+		require.Equal(t, 11, repo.store[productID].Quantity)
+		require.Equal(t, 24.9, repo.store[productID].Price)
+		require.Len(t, eventDispatcher.events, 2)
+		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.events[0].Type())
+		require.Equal(t, model.ProductQuantityChanged{}.Type(), eventDispatcher.events[1].Type())
 	})
 	eventDispatcher.Reset()
 
@@ -61,12 +64,12 @@ func TestProductService(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NotNil(t, repo.store[productID])
-		require.Equal(t, repo.store[productID].Name, "Test Product")
-		require.Equal(t, repo.store[productID].Quantity, 0)
-		require.Equal(t, repo.store[productID].Price, 24.9)
-		require.Len(t, eventDispatcher.ListEvents(), 2)
-		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.ListEvents()[0].Type())
-		require.Equal(t, model.ProductQuantityChanged{}.Type(), eventDispatcher.ListEvents()[1].Type())
+		require.Equal(t, "Test Product", repo.store[productID].Name)
+		require.Equal(t, 0, repo.store[productID].Quantity)
+		require.Equal(t, 24.9, repo.store[productID].Price)
+		require.Len(t, eventDispatcher.events, 2)
+		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.events[0].Type())
+		require.Equal(t, model.ProductQuantityChanged{}.Type(), eventDispatcher.events[1].Type())
 	})
 	eventDispatcher.Reset()
 
@@ -78,11 +81,11 @@ func TestProductService(t *testing.T) {
 		require.ErrorIs(t, err, model.ErrProductQuantityLessThanZero)
 
 		require.NotNil(t, repo.store[productID])
-		require.Equal(t, repo.store[productID].Name, "Test Product")
-		require.Equal(t, repo.store[productID].Quantity, 1)
-		require.Equal(t, repo.store[productID].Price, 24.9)
-		require.Len(t, eventDispatcher.ListEvents(), 1)
-		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.ListEvents()[0].Type())
+		require.Equal(t, "Test Product", repo.store[productID].Name)
+		require.Equal(t, 1, repo.store[productID].Quantity)
+		require.Equal(t, 24.9, repo.store[productID].Price)
+		require.Len(t, eventDispatcher.events, 1)
+		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.events[0].Type())
 	})
 	eventDispatcher.Reset()
 
@@ -93,10 +96,11 @@ func TestProductService(t *testing.T) {
 		err = productService.DeleteProduct(productID)
 		require.NoError(t, err)
 
-		require.Nil(t, repo.store[productID])
-		require.Len(t, eventDispatcher.ListEvents(), 2)
-		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.ListEvents()[0].Type())
-		require.Equal(t, model.ProductDeleted{}.Type(), eventDispatcher.ListEvents()[1].Type())
+		require.NotNil(t, repo.store[productID])
+		require.NotNil(t, repo.store[productID].DeletedAt)
+		require.Len(t, eventDispatcher.events, 2)
+		require.Equal(t, model.ProductCreated{}.Type(), eventDispatcher.events[0].Type())
+		require.Equal(t, model.ProductDeleted{}.Type(), eventDispatcher.events[1].Type())
 	})
 	eventDispatcher.Reset()
 
@@ -105,7 +109,7 @@ func TestProductService(t *testing.T) {
 		err := productService.DeleteProduct(newID)
 		require.ErrorIs(t, err, model.ErrProductNotFound)
 
-		require.Len(t, eventDispatcher.ListEvents(), 0)
+		require.Len(t, eventDispatcher.events, 0)
 	})
 	eventDispatcher.Reset()
 }
@@ -116,65 +120,59 @@ type mockProductRepository struct {
 	store map[uuid.UUID]*model.Product
 }
 
-func (m mockProductRepository) NextID() (uuid.UUID, error) {
+func (m *mockProductRepository) NextID() (uuid.UUID, error) {
 	return uuid.NewV7()
 }
 
-func (m mockProductRepository) Store(product *model.Product) error {
+func (m *mockProductRepository) Store(product *model.Product) error {
 	m.store[product.ID] = product
 	return nil
 }
 
-func (m mockProductRepository) Find(id uuid.UUID) (*model.Product, error) {
-	if product, ok := m.store[id]; ok && product.DeletedAt != nil {
-		return product, nil
+func (m *mockProductRepository) Find(id uuid.UUID) (*model.Product, error) {
+	product, ok := m.store[id]
+	if !ok {
+		return nil, model.ErrProductNotFound
 	}
-	return nil, model.ErrProductNotFound
+	if product.DeletedAt != nil {
+		return nil, model.ErrProductNotFound
+	}
+	return product, nil
 }
 
-func (m mockProductRepository) List() (*[]model.Product, error) {
+func (m *mockProductRepository) List() ([]model.Product, error) {
 	var res []model.Product
-	for _, v := range m.store {
-		if v != nil {
-			res = append(res, *v)
+	for _, product := range m.store {
+		if product != nil && product.DeletedAt == nil {
+			res = append(res, *product)
 		}
 	}
-	return &res, nil
+	return res, nil
 }
 
-func (m mockProductRepository) Delete(id uuid.UUID) error {
-	if product, ok := m.store[id]; ok && product.DeletedAt != nil {
-		product.DeletedAt = toPtr(time.Now())
-		return nil
+func (m *mockProductRepository) Delete(id uuid.UUID) error {
+	product, ok := m.store[id]
+	if !ok {
+		return model.ErrProductNotFound
 	}
-	return model.ErrProductNotFound
+	now := time.Now()
+	product.DeletedAt = &now
+	return nil
 }
-
-type MockEventDispatcher interface {
-	event.Dispatcher
-	Reset()
-	ListEvents() []event.Event
-}
-
-var _ MockEventDispatcher = &mockEventDispatcher{}
 
 type mockEventDispatcher struct {
 	events []event.Event
 }
 
-func (m mockEventDispatcher) Reset() {
-	m.events = nil
+func (m *mockEventDispatcher) Reset() {
+	m.events = make([]event.Event, 0)
 }
 
-func (m mockEventDispatcher) ListEvents() []event.Event {
+func (m *mockEventDispatcher) ListEvents() []event.Event {
 	return m.events
 }
 
-func (m mockEventDispatcher) Dispatch(event event.Event) error {
-	m.events = append(m.events, event)
+func (m *mockEventDispatcher) Dispatch(evt event.Event) error {
+	m.events = append(m.events, evt)
 	return nil
-}
-
-func toPtr[V any](v V) *V {
-	return &v
 }
