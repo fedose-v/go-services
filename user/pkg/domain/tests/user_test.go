@@ -14,23 +14,26 @@ import (
 
 func TestUserService(t *testing.T) {
 	repo := &mockUserRepository{
-		store: map[uuid.UUID]*model.User{},
+		store: make(map[uuid.UUID]*model.User),
 	}
-	eventDispatcher := &mockEventDispatcher{}
+	eventDispatcher := &mockEventDispatcher{
+		events: make([]event.Event, 0),
+	}
 
 	userService := service.NewUserService(repo, eventDispatcher)
 
 	login := "victor.wembanyama"
 	name := "Victor Wembanyama"
 	email := "victor.wembanyama@example.com"
+
 	t.Run("Create user", func(t *testing.T) {
 		userID, err := userService.CreateUser(login, name, email)
 		require.NoError(t, err)
 
 		require.NotNil(t, repo.store[userID])
-		require.Equal(t, repo.store[userID].Login, "victor.wembanyama")
-		require.Equal(t, repo.store[userID].Name, "Victor Wembanyama")
-		require.Equal(t, repo.store[userID].Email, "victor.wembanyama@example.com")
+		require.Equal(t, "victor.wembanyama", repo.store[userID].Login)
+		require.Equal(t, "Victor Wembanyama", repo.store[userID].Name)
+		require.Equal(t, "victor.wembanyama@example.com", repo.store[userID].Email)
 		require.Len(t, eventDispatcher.events, 1)
 		require.Equal(t, model.UserCreated{}.Type(), eventDispatcher.events[0].Type())
 	})
@@ -43,7 +46,8 @@ func TestUserService(t *testing.T) {
 		err = userService.DeleteUser(userID)
 		require.NoError(t, err)
 
-		require.Nil(t, repo.store[userID])
+		require.NotNil(t, repo.store[userID])
+		require.NotNil(t, repo.store[userID].DeletedAt)
 		require.Len(t, eventDispatcher.events, 2)
 		require.Equal(t, model.UserCreated{}.Type(), eventDispatcher.events[0].Type())
 		require.Equal(t, model.UserDeleted{}.Type(), eventDispatcher.events[1].Type())
@@ -66,60 +70,55 @@ type mockUserRepository struct {
 	store map[uuid.UUID]*model.User
 }
 
-func (m mockUserRepository) NextID() (uuid.UUID, error) {
+func (m *mockUserRepository) NextID() (uuid.UUID, error) {
 	return uuid.NewV7()
 }
 
-func (m mockUserRepository) Store(user *model.User) error {
+func (m *mockUserRepository) Store(user *model.User) error {
 	m.store[user.ID] = user
 	return nil
 }
 
-func (m mockUserRepository) Find(id uuid.UUID) (*model.User, error) {
-	if user, ok := m.store[id]; ok && user.DeletedAt != nil {
-		return user, nil
+func (m *mockUserRepository) Find(id uuid.UUID) (*model.User, error) {
+	user, ok := m.store[id]
+	if !ok {
+		return nil, model.ErrUserNotFound
 	}
-	return nil, model.ErrUserNotFound
+	if user.DeletedAt != nil {
+		return nil, model.ErrUserNotFound
+	}
+	return user, nil
 }
 
-func (m mockUserRepository) List() (*[]model.User, error) {
-	var res []model.User
-	for _, v := range m.store {
-		if v != nil {
-			res = append(res, *v)
+func (m *mockUserRepository) List() ([]model.User, error) {
+	res := make([]model.User, 0, len(m.store))
+	for _, user := range m.store {
+		if user != nil && user.DeletedAt == nil {
+			res = append(res, *user)
 		}
 	}
-	return &res, nil
+	return res, nil
 }
 
-func (m mockUserRepository) Delete(id uuid.UUID) error {
-	if user, ok := m.store[id]; ok && user.DeletedAt != nil {
-		user.DeletedAt = toPtr(time.Now())
-		return nil
+func (m *mockUserRepository) Delete(id uuid.UUID) error {
+	user, ok := m.store[id]
+	if !ok {
+		return model.ErrUserNotFound
 	}
-	return model.ErrUserNotFound
+	now := time.Now()
+	user.DeletedAt = &now
+	return nil
 }
-
-type MockEventDispatcher interface {
-	event.Dispatcher
-	Reset()
-}
-
-var _ MockEventDispatcher = &mockEventDispatcher{}
 
 type mockEventDispatcher struct {
 	events []event.Event
 }
 
-func (m mockEventDispatcher) Reset() {
-	m.events = nil
+func (m *mockEventDispatcher) Reset() {
+	m.events = make([]event.Event, 0)
 }
 
-func (m mockEventDispatcher) Dispatch(event event.Event) error {
-	m.events = append(m.events, event)
+func (m *mockEventDispatcher) Dispatch(evt event.Event) error {
+	m.events = append(m.events, evt)
 	return nil
-}
-
-func toPtr[V any](v V) *V {
-	return &v
 }
