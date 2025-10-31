@@ -1,4 +1,4 @@
-# MicroserviceTemplate
+# Payment Service
 
 Для сборки:
 ```bash

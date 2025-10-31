@@ -5,7 +5,6 @@ go 1.25.0
 require (
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/gorilla/mux v1.8.1
-	github.com/rabbitmq/amqp091-go v1.10.0
 )
 
 require (

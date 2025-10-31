@@ -10,8 +10,8 @@ import (
 	"github.com/urfave/cli/v2"
 	"google.golang.org/grpc"
 
-	api "invetory/api/server/invetoryinternal"
-	"invetory/pkg/infrastructure/transport"
+	api "inventory/api/server/inventoryinternal"
+	"inventory/pkg/infrastructure/transport"
 )
 
 const shutdownTimeout = 30 * time.Second
@@ -48,7 +48,7 @@ func startGRPCServer(
 	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(makeGrpcUnaryInterceptor(logger)))
 
 	// TODO: зарегистрировать свой сервер вместо шаблонного
-	api.RegisterinvetoryInternalServiceServer(grpcServer, transport.NewInternalAPI())
+	api.RegisterinventoryInternalServiceServer(grpcServer, transport.NewInternalAPI())
 
 	listener, err := net.Listen("tcp", config.ServeGRPCAddress)
 	if err != nil {

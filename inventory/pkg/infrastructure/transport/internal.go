@@ -3,10 +3,10 @@ package transport
 import (
 	"context"
 
-	api "microservicetemplate/api/server/microservicetemplateinternal"
+	api "inventory/api/server/inventoryinternal"
 )
 
-func NewInternalAPI() api.MicroserviceTemplateInternalServiceServer {
+func NewInternalAPI() api.inventoryInternalServiceServer {
 	return &internalAPI{}
 }
 

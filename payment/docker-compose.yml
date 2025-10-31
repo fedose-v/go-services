@@ -3,17 +3,17 @@ version: '3.3'
 services:
   microservicetemplate:
     image: microservicetemplate
-    container_name: microservicetemplate
+    container_name: inventory
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - "8081:8081" # GRPC API port
     environment:
-      MICROSERVICETEMPLATE_DB_HOST: microservicetemplate-db
-      MICROSERVICETEMPLATE_DB_PORT: 3306
-      MICROSERVICETEMPLATE_DB_NAME: microservicetemplate
-      MICROSERVICETEMPLATE_DB_USER: microservicetemplate
+      MICROSERVICETEMPLATE_DB_HOST: inventory-db
+      MICROSERVICETEMPLATE_DB_PORT: 3311
+      MICROSERVICETEMPLATE_DB_NAME: inventory
+      MICROSERVICETEMPLATE_DB_USER: inventory
       MICROSERVICETEMPLATE_DB_PASSWORD: ${DB_PASSWORD}
       MICROSERVICETEMPLATE_DB_MAX_CONN: 5
     depends_on:
@@ -22,16 +22,16 @@ services:
 
   microservicetemplate-db:
     image: percona:8.0
-    container_name: microservicetemplate-db
+    container_name: inventory-db
     environment:
-      MYSQL_DATABASE: microservicetemplate
-      MYSQL_USER: microservicetemplate
+      MYSQL_DATABASE: inventory
+      MYSQL_USER: inventory
       MYSQL_PASSWORD: ${DB_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
     ports:
       - "3306:3306"
     volumes:
-      - microservicetemplate-db-data:/var/lib/mysql
+      - inventory-db-data:/var/lib/mysql
     restart: unless-stopped
 
 volumes:

@@ -1,9 +1,9 @@
-package infrastructure
+package event
 
 type Event interface {
 	Type() string
 }
 
-type EventDispatcher interface {
+type Dispatcher interface {
 	Dispatch(event Event) error
 }

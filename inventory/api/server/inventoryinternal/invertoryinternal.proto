@@ -1,9 +1,9 @@
 syntax = "proto3";
-package MicroserviceTemplate;
+package inventory;
 
-option go_package = "/.;invetoryinternal";
+option go_package = "/.;inventoryinternal";
 
-service MicroserviceTemplateInternalService {
+service inventoryInternalService {
   rpc Ping(PingRequest) returns (PingResponse);
 }
 
