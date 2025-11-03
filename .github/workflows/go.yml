@@ -50,3 +50,25 @@ jobs:
       run: |
         cd inventory
         go test ./pkg/... -v -race -coverprofile=coverage.out
+
+  test-order:
+    name: Test Order Service
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.25'
+
+      - name: Tidy dependencies for order
+        run: |
+          cd order
+          go mod tidy
+
+      - name: Run tests for order
+        run: |
+          cd order
+          go test ./pkg/... -v -race -coverprofile=coverage.out
