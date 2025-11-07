@@ -1,0 +1,262 @@
+package tests
+
+import (
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"testing"
+
+	"payment/pkg/common/infrastructure/event"
+	"payment/pkg/domain/model"
+	"payment/pkg/domain/service"
+)
+
+func TestPaymentService(t *testing.T) {
+	paymentRepo := &mockPaymentRepository{
+		store: make(map[uuid.UUID]*model.Transaction),
+	}
+	balanceRepo := &mockCustomerBalanceRepository{
+		store: make(map[uuid.UUID]*model.CustomerAccountBalance),
+	}
+	eventDispatcher := &mockEventDispatcher{
+		events: make([]event.Event, 0),
+	}
+
+	paymentService := service.NewPaymentService(paymentRepo, balanceRepo, eventDispatcher)
+
+	customerID := uuid.Must(uuid.NewV7())
+	orderID := uuid.Must(uuid.NewV7())
+
+	t.Run("Create customer balance", func(t *testing.T) {
+		err := paymentService.CreateCustomerBalance(customerID)
+		require.NoError(t, err)
+
+		balance, ok := balanceRepo.store[customerID]
+		require.True(t, ok)
+		require.Equal(t, customerID, balance.CustomerID)
+		require.Equal(t, 0.0, balance.Amount)
+		require.Len(t, eventDispatcher.events, 1)
+		require.Equal(t, model.CustomerAccountCreated{}.Type(), eventDispatcher.events[0].Type())
+	})
+	eventDispatcher.Reset()
+
+	t.Run("Create already exist customer balance", func(t *testing.T) {
+		err := paymentService.CreateCustomerBalance(customerID)
+		require.NoError(t, err)
+
+		err = paymentService.CreateCustomerBalance(customerID)
+		require.ErrorIs(t, err, service.ErrBalanceExisted)
+
+		require.Len(t, eventDispatcher.events, 1)
+		require.Equal(t, model.CustomerAccountCreated{}.Type(), eventDispatcher.events[0].Type())
+	})
+	eventDispatcher.Reset()
+
+	t.Run("Add amount to balance", func(t *testing.T) {
+		err := paymentService.CreateCustomerBalance(customerID)
+		require.NoError(t, err)
+		eventDispatcher.Reset()
+
+		amountToAdd := 100.0
+		err = paymentService.AddAmountToBalance(customerID, amountToAdd)
+		require.NoError(t, err)
+
+		balance, ok := balanceRepo.store[customerID]
+		require.True(t, ok)
+		require.Equal(t, amountToAdd, balance.Amount)
+
+		require.Len(t, eventDispatcher.events, 1)
+		require.Equal(t, model.CustomerAmountUpdated{}.Type(), eventDispatcher.events[0].Type())
+
+		if event, ok := eventDispatcher.events[0].(model.CustomerAmountUpdated); ok {
+			require.Equal(t, customerID, event.CustomerID)
+			require.Equal(t, amountToAdd, event.NewAmount)
+		}
+	})
+	eventDispatcher.Reset()
+
+	t.Run("Add negative amount to balance", func(t *testing.T) {
+		err := paymentService.AddAmountToBalance(customerID, -50.0)
+		require.ErrorIs(t, err, service.ErrAddingNegativeAmount)
+
+		require.Len(t, eventDispatcher.events, 0)
+	})
+	eventDispatcher.Reset()
+
+	t.Run("Create transaction", func(t *testing.T) {
+		err := paymentService.CreateCustomerBalance(customerID)
+		require.NoError(t, err)
+		err = paymentService.AddAmountToBalance(customerID, 200.0)
+		require.NoError(t, err)
+		eventDispatcher.Reset()
+
+		amount := 50.0
+		transactionID, err := paymentService.CreateTransaction(orderID, customerID, amount)
+		require.NoError(t, err)
+		require.Equal(t, orderID, transactionID)
+
+		transaction, ok := paymentRepo.store[transactionID]
+		require.True(t, ok)
+		require.Equal(t, orderID, transaction.OrderID)
+		require.Equal(t, customerID, transaction.CustomerID)
+		require.Equal(t, model.New, transaction.Type)
+		require.Equal(t, amount, transaction.Amount)
+
+		balance, ok := balanceRepo.store[customerID]
+		require.True(t, ok)
+		require.Equal(t, 150.0, balance.Amount)
+
+		require.Len(t, eventDispatcher.events, 1)
+		require.Equal(t, model.TransactionCreated{}.Type(), eventDispatcher.events[0].Type())
+
+		if event, ok := eventDispatcher.events[0].(model.TransactionCreated); ok {
+			require.Equal(t, orderID, event.OrderID)
+			require.Equal(t, customerID, event.CustomerID)
+		}
+	})
+	eventDispatcher.Reset()
+
+	t.Run("Create transaction with insufficient funds", func(t *testing.T) {
+		insufficientCustomerID := uuid.Must(uuid.NewV7())
+		err := paymentService.CreateCustomerBalance(insufficientCustomerID)
+		require.NoError(t, err)
+		err = paymentService.AddAmountToBalance(insufficientCustomerID, 10.0)
+		require.NoError(t, err)
+		eventDispatcher.Reset()
+
+		amount := 50.0
+		_, err = paymentService.CreateTransaction(orderID, insufficientCustomerID, amount)
+		require.ErrorIs(t, err, service.ErrNotEnoughAmount)
+
+		require.Len(t, eventDispatcher.events, 0)
+	})
+	eventDispatcher.Reset()
+
+	t.Run("Create refund", func(t *testing.T) {
+		err := paymentService.CreateCustomerBalance(customerID)
+		require.NoError(t, err)
+		eventDispatcher.Reset()
+
+		originalBalance := 100.0
+		err = paymentService.AddAmountToBalance(customerID, originalBalance)
+		require.NoError(t, err)
+
+		amount := 30.0
+		transactionID, err := paymentService.CreateRefund(orderID, customerID, amount)
+		require.NoError(t, err)
+		require.Equal(t, orderID, transactionID)
+
+		transaction, ok := paymentRepo.store[transactionID]
+		require.True(t, ok)
+		require.Equal(t, orderID, transaction.OrderID)
+		require.Equal(t, customerID, transaction.CustomerID)
+		require.Equal(t, model.Refund, transaction.Type)
+		require.Equal(t, amount, transaction.Amount)
+
+		balance, ok := balanceRepo.store[customerID]
+		require.True(t, ok)
+		require.Equal(t, originalBalance+amount, balance.Amount)
+
+		require.Len(t, eventDispatcher.events, 1)
+		require.Equal(t, model.RefundCreated{}.Type(), eventDispatcher.events[0].Type())
+
+		if event, ok := eventDispatcher.events[0].(model.RefundCreated); ok {
+			require.Equal(t, orderID, event.OrderID)
+			require.Equal(t, customerID, event.CustomerID)
+		}
+	})
+	eventDispatcher.Reset()
+
+	t.Run("Create transaction when customer balance not found", func(t *testing.T) {
+		nonExistentCustomerID := uuid.Must(uuid.NewV7())
+		amount := 50.0
+		_, err := paymentService.CreateTransaction(orderID, nonExistentCustomerID, amount)
+		require.ErrorIs(t, err, model.ErrOrderNotFound)
+
+		require.Len(t, eventDispatcher.events, 0)
+	})
+	eventDispatcher.Reset()
+
+	t.Run("Create refund when customer balance not found", func(t *testing.T) {
+		nonExistentCustomerID := uuid.Must(uuid.NewV7())
+		amount := 50.0
+		_, err := paymentService.CreateRefund(orderID, nonExistentCustomerID, amount)
+		require.ErrorIs(t, err, model.ErrOrderNotFound)
+
+		require.Len(t, eventDispatcher.events, 0)
+	})
+	eventDispatcher.Reset()
+
+	t.Run("Add amount to balance when customer not found", func(t *testing.T) {
+		nonExistentCustomerID := uuid.Must(uuid.NewV7())
+		amount := 50.0
+		err := paymentService.AddAmountToBalance(nonExistentCustomerID, amount)
+		require.ErrorIs(t, err, model.ErrOrderNotFound)
+
+		require.Len(t, eventDispatcher.events, 0)
+	})
+	eventDispatcher.Reset()
+}
+
+var _ model.PaymentRepository = &mockPaymentRepository{}
+
+type mockPaymentRepository struct {
+	store map[uuid.UUID]*model.Transaction
+}
+
+func (m *mockPaymentRepository) NextID() (uuid.UUID, error) {
+	return uuid.NewV7()
+}
+
+func (m *mockPaymentRepository) Store(transaction *model.Transaction) error {
+	m.store[transaction.ID] = transaction
+	return nil
+}
+
+func (m *mockPaymentRepository) Find(id uuid.UUID) (*model.Transaction, error) {
+	transaction, ok := m.store[id]
+	if !ok {
+		return nil, model.ErrOrderNotFound
+	}
+	return transaction, nil
+}
+
+func (m *mockPaymentRepository) Delete(id uuid.UUID) error {
+	delete(m.store, id)
+	return nil
+}
+
+var _ model.CustomerBalanceRepository = &mockCustomerBalanceRepository{}
+
+type mockCustomerBalanceRepository struct {
+	store map[uuid.UUID]*model.CustomerAccountBalance
+}
+
+func (m *mockCustomerBalanceRepository) Store(balance *model.CustomerAccountBalance) error {
+	m.store[balance.CustomerID] = balance
+	return nil
+}
+
+func (m *mockCustomerBalanceRepository) Find(customerID uuid.UUID) (*model.CustomerAccountBalance, error) {
+	balance, ok := m.store[customerID]
+	if !ok {
+		return nil, model.ErrOrderNotFound
+	}
+	return balance, nil
+}
+
+type mockEventDispatcher struct {
+	events []event.Event
+}
+
+func (m *mockEventDispatcher) Reset() {
+	m.events = make([]event.Event, 0)
+}
+
+func (m *mockEventDispatcher) ListEvents() []event.Event {
+	return m.events
+}
+
+func (m *mockEventDispatcher) Dispatch(evt event.Event) error {
+	m.events = append(m.events, evt)
+	return nil
+}

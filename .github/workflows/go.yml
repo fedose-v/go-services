@@ -94,3 +94,25 @@ jobs:
         run: |
           cd notification
           go test ./pkg/... -v -race -coverprofile=coverage.out
+
+  test-payment:
+    name: Test Notification Service
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.25'
+
+      - name: Tidy dependencies for payment
+        run: |
+          cd payment
+          go mod tidy
+
+      - name: Run tests for payment
+        run: |
+          cd payment
+          go test ./pkg/... -v -race -coverprofile=coverage.out
