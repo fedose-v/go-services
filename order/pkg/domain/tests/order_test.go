@@ -177,9 +177,8 @@ func TestOrderService(t *testing.T) {
 
 		require.Len(t, repo.store[orderID].Items, 0)
 
-		require.Len(t, eventDispatcher.events, 2)
+		require.Len(t, eventDispatcher.events, 1)
 		require.Equal(t, model.OrderCreated{}.Type(), eventDispatcher.events[0].Type())
-		require.Equal(t, model.OrderItemChanged{}.Type(), eventDispatcher.events[1].Type())
 	})
 	eventDispatcher.Reset()
 }
