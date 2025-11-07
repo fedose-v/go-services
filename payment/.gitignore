@@ -1,7 +1,7 @@
 .idea/
 /vendor/
 
-bin/microservicetemplate
+bin/payment
 !bin/
 
 .env
