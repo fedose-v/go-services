@@ -38,6 +38,7 @@ func TestPaymentService(t *testing.T) {
 		require.Equal(t, model.CustomerAccountCreated{}.Type(), eventDispatcher.events[0].Type())
 	})
 	eventDispatcher.Reset()
+	balanceRepo.Reset()
 
 	t.Run("Create already exist customer balance", func(t *testing.T) {
 		err := paymentService.CreateCustomerBalance(customerID)
@@ -50,6 +51,7 @@ func TestPaymentService(t *testing.T) {
 		require.Equal(t, model.CustomerAccountCreated{}.Type(), eventDispatcher.events[0].Type())
 	})
 	eventDispatcher.Reset()
+	balanceRepo.Reset()
 
 	t.Run("Add amount to balance", func(t *testing.T) {
 		err := paymentService.CreateCustomerBalance(customerID)
@@ -81,6 +83,7 @@ func TestPaymentService(t *testing.T) {
 		require.Len(t, eventDispatcher.events, 0)
 	})
 	eventDispatcher.Reset()
+	balanceRepo.Reset()
 
 	t.Run("Create transaction", func(t *testing.T) {
 		err := paymentService.CreateCustomerBalance(customerID)
@@ -130,6 +133,7 @@ func TestPaymentService(t *testing.T) {
 		require.Len(t, eventDispatcher.events, 0)
 	})
 	eventDispatcher.Reset()
+	balanceRepo.Reset()
 
 	t.Run("Create refund", func(t *testing.T) {
 		err := paymentService.CreateCustomerBalance(customerID)
@@ -242,6 +246,10 @@ func (m *mockCustomerBalanceRepository) Find(customerID uuid.UUID) (*model.Custo
 		return nil, model.ErrOrderNotFound
 	}
 	return balance, nil
+}
+
+func (m *mockCustomerBalanceRepository) Reset() {
+	m.store = make(map[uuid.UUID]*model.CustomerAccountBalance)
 }
 
 type mockEventDispatcher struct {
