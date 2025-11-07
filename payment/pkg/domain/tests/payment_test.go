@@ -139,11 +139,11 @@ func TestPaymentService(t *testing.T) {
 	t.Run("Create refund", func(t *testing.T) {
 		err := paymentService.CreateCustomerBalance(customerID)
 		require.NoError(t, err)
-		eventDispatcher.Reset()
 
 		originalBalance := 100.0
 		err = paymentService.AddAmountToBalance(customerID, originalBalance)
 		require.NoError(t, err)
+		eventDispatcher.Reset()
 
 		amount := 30.0
 		transactionID, err := paymentService.CreateRefund(orderID, customerID, amount)
