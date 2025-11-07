@@ -95,6 +95,7 @@ func TestPaymentService(t *testing.T) {
 		amount := 50.0
 		transactionID, err := paymentService.CreateTransaction(orderID, customerID, amount)
 		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, transactionID)
 
 		transaction, err := paymentRepo.Find(transactionID)
 		require.NoError(t, err)
