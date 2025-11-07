@@ -115,11 +115,11 @@ func TestOrderService(t *testing.T) {
 	})
 	eventDispatcher.Reset()
 
-	t.Run("Add item to deleted order", func(t *testing.T) {
+	t.Run("Add item to order with invalid status", func(t *testing.T) {
 		orderID, err := orderService.CreateOrder(customerID)
 		require.NoError(t, err)
 
-		err = orderService.DeleteOrder(orderID)
+		err = orderService.SetStatus(orderID, model.Pending)
 		require.NoError(t, err)
 
 		productID := uuid.Must(uuid.NewV7())
@@ -131,7 +131,7 @@ func TestOrderService(t *testing.T) {
 
 		require.Len(t, eventDispatcher.events, 2)
 		require.Equal(t, model.OrderCreated{}.Type(), eventDispatcher.events[0].Type())
-		require.Equal(t, model.OrderDeleted{}.Type(), eventDispatcher.events[1].Type())
+		require.Equal(t, model.OrderStatusChanged{}.Type(), eventDispatcher.events[1].Type())
 	})
 	eventDispatcher.Reset()
 
