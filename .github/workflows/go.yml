@@ -96,7 +96,7 @@ jobs:
           go test ./pkg/... -v -race -coverprofile=coverage.out
 
   test-payment:
-    name: Test Notification Service
+    name: Test Payment Service
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

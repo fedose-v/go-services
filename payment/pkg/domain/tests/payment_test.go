@@ -83,6 +83,7 @@ func TestPaymentService(t *testing.T) {
 	})
 	eventDispatcher.Reset()
 	balanceRepo.Reset()
+	paymentRepo.Reset()
 
 	t.Run("Create transaction", func(t *testing.T) {
 		err := paymentService.CreateCustomerBalance(customerID)
@@ -132,6 +133,7 @@ func TestPaymentService(t *testing.T) {
 	})
 	eventDispatcher.Reset()
 	balanceRepo.Reset()
+	paymentRepo.Reset()
 
 	t.Run("Create refund", func(t *testing.T) {
 		err := paymentService.CreateCustomerBalance(customerID)
@@ -225,6 +227,10 @@ func (m *mockPaymentRepository) Find(id uuid.UUID) (*model.Transaction, error) {
 func (m *mockPaymentRepository) Delete(id uuid.UUID) error {
 	delete(m.store, id)
 	return nil
+}
+
+func (m *mockPaymentRepository) Reset() {
+	m.store = make(map[uuid.UUID]*model.Transaction)
 }
 
 var _ model.CustomerBalanceRepository = &mockCustomerBalanceRepository{}
