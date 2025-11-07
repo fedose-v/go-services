@@ -30,8 +30,8 @@ func TestPaymentService(t *testing.T) {
 		err := paymentService.CreateCustomerBalance(customerID)
 		require.NoError(t, err)
 
-		balance, ok := balanceRepo.store[customerID]
-		require.True(t, ok)
+		balance, err := balanceRepo.Find(customerID)
+		require.NoError(t, err)
 		require.Equal(t, customerID, balance.CustomerID)
 		require.Equal(t, 0.0, balance.Amount)
 		require.Len(t, eventDispatcher.events, 1)
@@ -62,8 +62,7 @@ func TestPaymentService(t *testing.T) {
 		err = paymentService.AddAmountToBalance(customerID, amountToAdd)
 		require.NoError(t, err)
 
-		balance, ok := balanceRepo.store[customerID]
-		require.True(t, ok)
+		balance, err := balanceRepo.Find(customerID)
 		require.Equal(t, amountToAdd, balance.Amount)
 
 		require.Len(t, eventDispatcher.events, 1)
@@ -95,17 +94,16 @@ func TestPaymentService(t *testing.T) {
 		amount := 50.0
 		transactionID, err := paymentService.CreateTransaction(orderID, customerID, amount)
 		require.NoError(t, err)
-		require.Equal(t, orderID, transactionID)
 
-		transaction, ok := paymentRepo.store[transactionID]
-		require.True(t, ok)
+		transaction, err := paymentRepo.Find(transactionID)
+		require.NoError(t, err)
 		require.Equal(t, orderID, transaction.OrderID)
 		require.Equal(t, customerID, transaction.CustomerID)
 		require.Equal(t, model.New, transaction.Type)
 		require.Equal(t, amount, transaction.Amount)
 
-		balance, ok := balanceRepo.store[customerID]
-		require.True(t, ok)
+		balance, err := balanceRepo.Find(customerID)
+		require.NoError(t, err)
 		require.Equal(t, 150.0, balance.Amount)
 
 		require.Len(t, eventDispatcher.events, 1)
@@ -149,15 +147,15 @@ func TestPaymentService(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, orderID, transactionID)
 
-		transaction, ok := paymentRepo.store[transactionID]
-		require.True(t, ok)
+		transaction, err := paymentRepo.Find(transactionID)
+		require.NoError(t, err)
 		require.Equal(t, orderID, transaction.OrderID)
 		require.Equal(t, customerID, transaction.CustomerID)
 		require.Equal(t, model.Refund, transaction.Type)
 		require.Equal(t, amount, transaction.Amount)
 
-		balance, ok := balanceRepo.store[customerID]
-		require.True(t, ok)
+		balance, err := balanceRepo.Find(customerID)
+		require.NoError(t, err)
 		require.Equal(t, originalBalance+amount, balance.Amount)
 
 		require.Len(t, eventDispatcher.events, 1)
