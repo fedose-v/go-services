@@ -44,7 +44,7 @@ func TestOrderService(t *testing.T) {
 
 		require.NotNil(t, repo.store[orderID])
 		require.NotNil(t, repo.store[orderID].DeletedAt)
-		require.Equal(t, model.Deleted, repo.store[orderID].DeletedAt)
+		require.Equal(t, model.Deleted, repo.store[orderID].Status)
 		require.Len(t, eventDispatcher.events, 2)
 		require.Equal(t, model.OrderCreated{}.Type(), eventDispatcher.events[0].Type())
 		require.Equal(t, model.OrderDeleted{}.Type(), eventDispatcher.events[1].Type())
