@@ -140,10 +140,8 @@ func TestOrderService(t *testing.T) {
 		productID := uuid.Must(uuid.NewV7())
 
 		itemID, err := orderService.AddItem(orderID, productID, 1.64)
+		require.Equal(t, uuid.Nil, itemID)
 		require.ErrorIs(t, err, model.ErrOrderNotFound)
-
-		item := findItemByID(repo.store[orderID].Items, itemID)
-		require.Nil(t, item)
 
 		require.Len(t, eventDispatcher.events, 0)
 	})
