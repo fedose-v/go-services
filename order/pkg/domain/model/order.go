@@ -16,6 +16,7 @@ const (
 	Pending
 	Paid
 	Cancelled
+	Deleted
 )
 
 type Order struct {

@@ -6,20 +6,13 @@ import (
 
 	"github.com/google/uuid"
 
+	"order/pkg/common/infrastructure/event"
 	"order/pkg/domain/model"
 )
 
 var (
 	ErrInvalidOrderStatus = errors.New("invalid order status")
 )
-
-type Event interface {
-	Type() string
-}
-
-type EventDispatcher interface {
-	Dispatch(event Event) error
-}
 
 type Order interface {
 	CreateOrder(customerID uuid.UUID) (uuid.UUID, error)
@@ -30,7 +23,7 @@ type Order interface {
 	DeleteItem(orderID uuid.UUID, itemID uuid.UUID) error
 }
 
-func NewOrderService(repo model.OrderRepository, dispatcher EventDispatcher) Order {
+func NewOrderService(repo model.OrderRepository, dispatcher event.Dispatcher) Order {
 	return &orderService{
 		repo:       repo,
 		dispatcher: dispatcher,
@@ -39,7 +32,7 @@ func NewOrderService(repo model.OrderRepository, dispatcher EventDispatcher) Ord
 
 type orderService struct {
 	repo       model.OrderRepository
-	dispatcher EventDispatcher
+	dispatcher event.Dispatcher
 }
 
 func (o orderService) CreateOrder(customerID uuid.UUID) (uuid.UUID, error) {
@@ -74,6 +67,7 @@ func (o orderService) DeleteOrder(orderID uuid.UUID) error {
 
 	deletedAt := time.Now()
 	order.DeletedAt = &deletedAt
+	order.Status = model.Deleted
 
 	err = o.repo.Store(order)
 	if err != nil {
@@ -141,7 +135,7 @@ func (o orderService) DeleteItem(orderID uuid.UUID, itemID uuid.UUID) error {
 		return model.ErrOrderNotFound
 	}
 
-	newItems, removedItems := removeItemByID(order.Items, itemID)
+	newItems := removeItemByID(order.Items, itemID)
 	order.Items = newItems
 
 	err = o.repo.Store(order)
@@ -151,19 +145,16 @@ func (o orderService) DeleteItem(orderID uuid.UUID, itemID uuid.UUID) error {
 
 	return o.dispatcher.Dispatch(model.OrderItemChanged{
 		OrderID:      orderID,
-		RemovedItems: removedItems,
+		RemovedItems: []uuid.UUID{itemID},
 	})
 }
 
-func removeItemByID(items []model.Item, id uuid.UUID) ([]model.Item, []uuid.UUID) {
+func removeItemByID(items []model.Item, id uuid.UUID) []model.Item {
 	result := make([]model.Item, 0)
-	removed := make([]uuid.UUID, 0)
 	for _, item := range items {
 		if item.ID != id {
 			result = append(result, item)
-		} else {
-			removed = append(removed, item.ID)
 		}
 	}
-	return result, removed
+	return result
 }
