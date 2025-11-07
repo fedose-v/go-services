@@ -1,4 +1,4 @@
-# Payment Service
+# User Service
 
 Для сборки:
 ```bash
