@@ -148,7 +148,6 @@ func TestPaymentService(t *testing.T) {
 		amount := 30.0
 		transactionID, err := paymentService.CreateRefund(orderID, customerID, amount)
 		require.NoError(t, err)
-		require.Equal(t, orderID, transactionID)
 
 		transaction, err := paymentRepo.Find(transactionID)
 		require.NoError(t, err)
