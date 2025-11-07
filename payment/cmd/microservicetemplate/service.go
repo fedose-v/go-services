@@ -10,8 +10,8 @@ import (
 	"github.com/urfave/cli/v2"
 	"google.golang.org/grpc"
 
-	api "microservicetemplate/api/server/microservicetemplateinternal"
-	"microservicetemplate/pkg/infrastructure/transport"
+	api "payment/api/server/paymentinternal"
+	"payment/pkg/infrastructure/transport"
 )
 
 const shutdownTimeout = 30 * time.Second

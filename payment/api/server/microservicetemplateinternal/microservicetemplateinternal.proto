@@ -1,7 +1,7 @@
 syntax = "proto3";
 package MicroserviceTemplate;
 
-option go_package = "/.;inventoryinternal";
+option go_package = "/.;paymentinternal";
 
 service MicroserviceTemplateInternalService {
   rpc Ping(PingRequest) returns (PingResponse);

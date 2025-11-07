@@ -1,0 +1,45 @@
+package model
+
+import (
+	"errors"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+var ErrOrderNotFound = errors.New("order not found")
+
+type TransactionType int
+
+const (
+	New TransactionType = iota
+	Refund
+)
+
+type CustomerAccountBalance struct {
+	CustomerID uuid.UUID
+	Amount     float64
+	CreatedAt  time.Time
+	UpdatedAt  *time.Time
+}
+
+type Transaction struct {
+	ID          uuid.UUID
+	OrderID     uuid.UUID
+	CustomerID  uuid.UUID
+	Type        TransactionType
+	Amount      float64
+	PaymentDate time.Time
+}
+
+type PaymentRepository interface {
+	NextID() (uuid.UUID, error)
+	Store(transaction *Transaction) error
+	Find(id uuid.UUID) (*Transaction, error)
+	Delete(id uuid.UUID) error
+}
+
+type CustomerBalanceRepository interface {
+	Store(balance *CustomerAccountBalance) error
+	Find(customerID uuid.UUID) (*CustomerAccountBalance, error)
+}
