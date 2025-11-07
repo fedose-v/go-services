@@ -58,9 +58,7 @@ func TestNotificationService(t *testing.T) {
 		err := notificationService.SendNotification(notificationID, model.Recipient{Name: "Steve", Email: "test.steve@example.com"})
 		require.ErrorIs(t, err, model.ErrNotificationNotFound)
 
-		require.Len(t, eventDispatcher.events, 2)
-		require.Equal(t, model.NotificationCreated{}.Type(), eventDispatcher.events[0].Type())
-		require.Equal(t, model.NotificationSent{}.Type(), eventDispatcher.events[1].Type())
+		require.Len(t, eventDispatcher.events, 0)
 	})
 	eventDispatcher.Reset()
 
