@@ -1,9 +1,9 @@
 syntax = "proto3";
-package Order;
+package notification;
 
-option go_package = "/.;orderinternal";
+option go_package = "/.;notificationinternal";
 
-service OrderInternalService {
+service notificationInternalService {
   rpc Ping(PingRequest) returns (PingResponse);
 }
 
