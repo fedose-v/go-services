@@ -146,6 +146,42 @@ func TestOrderService(t *testing.T) {
 		require.Len(t, eventDispatcher.events, 0)
 	})
 	eventDispatcher.Reset()
+
+	t.Run("Delete order item", func(t *testing.T) {
+		orderID, err := orderService.CreateOrder(customerID)
+		require.NoError(t, err)
+
+		productID := uuid.Must(uuid.NewV7())
+		itemID, err := orderService.AddItem(orderID, productID, 1.64)
+		require.NoError(t, err)
+
+		err = orderService.DeleteItem(orderID, itemID)
+		require.NoError(t, err)
+
+		require.Len(t, repo.store[orderID].Items, 0)
+
+		require.Len(t, eventDispatcher.events, 3)
+		require.Equal(t, model.OrderCreated{}.Type(), eventDispatcher.events[0].Type())
+		require.Equal(t, model.OrderItemChanged{}.Type(), eventDispatcher.events[1].Type())
+		require.Equal(t, model.OrderItemChanged{}.Type(), eventDispatcher.events[2].Type())
+	})
+	eventDispatcher.Reset()
+
+	t.Run("Delete non exited order item", func(t *testing.T) {
+		orderID, err := orderService.CreateOrder(customerID)
+		require.NoError(t, err)
+
+		itemID := uuid.Must(uuid.NewV7())
+		err = orderService.DeleteItem(orderID, itemID)
+		require.NoError(t, err)
+
+		require.Len(t, repo.store[orderID].Items, 0)
+
+		require.Len(t, eventDispatcher.events, 2)
+		require.Equal(t, model.OrderCreated{}.Type(), eventDispatcher.events[0].Type())
+		require.Equal(t, model.OrderItemChanged{}.Type(), eventDispatcher.events[1].Type())
+	})
+	eventDispatcher.Reset()
 }
 
 func findItemByID(items []model.Item, id uuid.UUID) *model.Item {

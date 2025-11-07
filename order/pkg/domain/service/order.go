@@ -136,6 +136,9 @@ func (o orderService) DeleteItem(orderID uuid.UUID, itemID uuid.UUID) error {
 	}
 
 	newItems := removeItemByID(order.Items, itemID)
+	if len(newItems) == len(order.Items) {
+		return nil
+	}
 	order.Items = newItems
 
 	err = o.repo.Store(order)
