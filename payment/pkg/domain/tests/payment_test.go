@@ -175,7 +175,7 @@ func TestPaymentService(t *testing.T) {
 		nonExistentCustomerID := uuid.Must(uuid.NewV7())
 		amount := 50.0
 		_, err := paymentService.CreateTransaction(orderID, nonExistentCustomerID, amount)
-		require.ErrorIs(t, err, model.ErrOrderNotFound)
+		require.ErrorIs(t, err, model.ErrPaymentNotFound)
 
 		require.Len(t, eventDispatcher.events, 0)
 	})
@@ -185,7 +185,7 @@ func TestPaymentService(t *testing.T) {
 		nonExistentCustomerID := uuid.Must(uuid.NewV7())
 		amount := 50.0
 		_, err := paymentService.CreateRefund(orderID, nonExistentCustomerID, amount)
-		require.ErrorIs(t, err, model.ErrOrderNotFound)
+		require.ErrorIs(t, err, model.ErrPaymentNotFound)
 
 		require.Len(t, eventDispatcher.events, 0)
 	})
@@ -195,7 +195,7 @@ func TestPaymentService(t *testing.T) {
 		nonExistentCustomerID := uuid.Must(uuid.NewV7())
 		amount := 50.0
 		err := paymentService.AddAmountToBalance(nonExistentCustomerID, amount)
-		require.ErrorIs(t, err, model.ErrOrderNotFound)
+		require.ErrorIs(t, err, model.ErrPaymentNotFound)
 
 		require.Len(t, eventDispatcher.events, 0)
 	})
@@ -220,7 +220,7 @@ func (m *mockPaymentRepository) Store(transaction *model.Transaction) error {
 func (m *mockPaymentRepository) Find(id uuid.UUID) (*model.Transaction, error) {
 	transaction, ok := m.store[id]
 	if !ok {
-		return nil, model.ErrOrderNotFound
+		return nil, model.ErrPaymentNotFound
 	}
 	return transaction, nil
 }
@@ -248,7 +248,7 @@ func (m *mockCustomerBalanceRepository) Store(balance *model.CustomerAccountBala
 func (m *mockCustomerBalanceRepository) Find(customerID uuid.UUID) (*model.CustomerAccountBalance, error) {
 	balance, ok := m.store[customerID]
 	if !ok {
-		return nil, model.ErrOrderNotFound
+		return nil, model.ErrPaymentNotFound
 	}
 	return balance, nil
 }

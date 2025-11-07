@@ -26,14 +26,14 @@ type Payment interface {
 
 func NewPaymentService(repo model.PaymentRepository, accountBalanceRepo model.CustomerBalanceRepository, dispatcher event.Dispatcher) Payment {
 	return &paymentService{
-		repo:        repo,
+		paymentRepo: repo,
 		balanceRepo: accountBalanceRepo,
 		dispatcher:  dispatcher,
 	}
 }
 
 type paymentService struct {
-	repo        model.PaymentRepository
+	paymentRepo model.PaymentRepository
 	balanceRepo model.CustomerBalanceRepository
 	dispatcher  event.Dispatcher
 }
@@ -48,20 +48,19 @@ func (p paymentService) CreateTransaction(orderID uuid.UUID, customerID uuid.UUI
 		return uuid.Nil, ErrNotEnoughAmount
 	}
 
-	transactionID, err := p.repo.NextID()
+	transactionID, err := p.paymentRepo.NextID()
 	if err != nil {
 		return uuid.Nil, err
 	}
 
 	currentTime := time.Now()
 	balance.Amount -= amount
-	balance.UpdatedAt = &currentTime
 	err = p.balanceRepo.Store(balance)
 	if err != nil {
 		return uuid.Nil, err
 	}
 
-	err = p.repo.Store(&model.Transaction{
+	err = p.paymentRepo.Store(&model.Transaction{
 		ID:          transactionID,
 		OrderID:     orderID,
 		CustomerID:  customerID,
@@ -73,7 +72,7 @@ func (p paymentService) CreateTransaction(orderID uuid.UUID, customerID uuid.UUI
 		return uuid.Nil, err
 	}
 
-	return orderID, p.dispatcher.Dispatch(model.TransactionCreated{
+	return transactionID, p.dispatcher.Dispatch(model.TransactionCreated{
 		TransactionID: transactionID,
 		OrderID:       orderID,
 		CustomerID:    customerID,
@@ -95,12 +94,12 @@ func (p paymentService) CreateRefund(orderID uuid.UUID, customerID uuid.UUID, am
 		return uuid.Nil, err
 	}
 
-	transactionID, err := p.repo.NextID()
+	transactionID, err := p.paymentRepo.NextID()
 	if err != nil {
 		return uuid.Nil, err
 	}
 
-	err = p.repo.Store(&model.Transaction{
+	err = p.paymentRepo.Store(&model.Transaction{
 		ID:          transactionID,
 		OrderID:     orderID,
 		CustomerID:  customerID,

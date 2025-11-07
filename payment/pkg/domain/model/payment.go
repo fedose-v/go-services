@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-var ErrOrderNotFound = errors.New("order not found")
+var ErrPaymentNotFound = errors.New("payment not found")
 
 type TransactionType int
 
