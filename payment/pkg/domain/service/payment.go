@@ -111,7 +111,7 @@ func (p paymentService) CreateRefund(orderID uuid.UUID, customerID uuid.UUID, am
 		return uuid.Nil, err
 	}
 
-	return orderID, p.dispatcher.Dispatch(model.RefundCreated{
+	return transactionID, p.dispatcher.Dispatch(model.RefundCreated{
 		TransactionID: transactionID,
 		OrderID:       orderID,
 		CustomerID:    customerID,
