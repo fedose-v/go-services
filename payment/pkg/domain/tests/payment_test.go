@@ -27,6 +27,11 @@ func TestPaymentService(t *testing.T) {
 	orderID := uuid.Must(uuid.NewV7())
 
 	t.Run("Create customer balance", func(t *testing.T) {
+		t.Cleanup(func() {
+			eventDispatcher.Reset()
+			paymentRepo.Reset()
+			balanceRepo.Reset()
+		})
 		err := paymentService.CreateCustomerBalance(customerID)
 		require.NoError(t, err)
 
@@ -37,10 +42,13 @@ func TestPaymentService(t *testing.T) {
 		require.Len(t, eventDispatcher.events, 1)
 		require.Equal(t, model.CustomerAccountCreated{}.Type(), eventDispatcher.events[0].Type())
 	})
-	eventDispatcher.Reset()
-	balanceRepo.Reset()
 
 	t.Run("Create already exist customer balance", func(t *testing.T) {
+		t.Cleanup(func() {
+			eventDispatcher.Reset()
+			paymentRepo.Reset()
+			balanceRepo.Reset()
+		})
 		err := paymentService.CreateCustomerBalance(customerID)
 		require.NoError(t, err)
 
@@ -50,10 +58,13 @@ func TestPaymentService(t *testing.T) {
 		require.Len(t, eventDispatcher.events, 1)
 		require.Equal(t, model.CustomerAccountCreated{}.Type(), eventDispatcher.events[0].Type())
 	})
-	eventDispatcher.Reset()
-	balanceRepo.Reset()
 
 	t.Run("Add amount to balance", func(t *testing.T) {
+		t.Cleanup(func() {
+			eventDispatcher.Reset()
+			paymentRepo.Reset()
+			balanceRepo.Reset()
+		})
 		err := paymentService.CreateCustomerBalance(customerID)
 		require.NoError(t, err)
 		eventDispatcher.Reset()
@@ -73,19 +84,25 @@ func TestPaymentService(t *testing.T) {
 			require.Equal(t, amountToAdd, event.NewAmount)
 		}
 	})
-	eventDispatcher.Reset()
 
 	t.Run("Add negative amount to balance", func(t *testing.T) {
+		t.Cleanup(func() {
+			eventDispatcher.Reset()
+			paymentRepo.Reset()
+			balanceRepo.Reset()
+		})
 		err := paymentService.AddAmountToBalance(customerID, -50.0)
 		require.ErrorIs(t, err, service.ErrAddingNegativeAmount)
 
 		require.Len(t, eventDispatcher.events, 0)
 	})
-	eventDispatcher.Reset()
-	balanceRepo.Reset()
-	paymentRepo.Reset()
 
 	t.Run("Create transaction", func(t *testing.T) {
+		t.Cleanup(func() {
+			eventDispatcher.Reset()
+			paymentRepo.Reset()
+			balanceRepo.Reset()
+		})
 		err := paymentService.CreateCustomerBalance(customerID)
 		require.NoError(t, err)
 		err = paymentService.AddAmountToBalance(customerID, 200.0)
@@ -116,9 +133,13 @@ func TestPaymentService(t *testing.T) {
 			require.Equal(t, customerID, event.CustomerID)
 		}
 	})
-	eventDispatcher.Reset()
 
 	t.Run("Create transaction with insufficient funds", func(t *testing.T) {
+		t.Cleanup(func() {
+			eventDispatcher.Reset()
+			paymentRepo.Reset()
+			balanceRepo.Reset()
+		})
 		insufficientCustomerID := uuid.Must(uuid.NewV7())
 		err := paymentService.CreateCustomerBalance(insufficientCustomerID)
 		require.NoError(t, err)
@@ -132,11 +153,13 @@ func TestPaymentService(t *testing.T) {
 
 		require.Len(t, eventDispatcher.events, 0)
 	})
-	eventDispatcher.Reset()
-	balanceRepo.Reset()
-	paymentRepo.Reset()
 
 	t.Run("Create refund", func(t *testing.T) {
+		t.Cleanup(func() {
+			eventDispatcher.Reset()
+			paymentRepo.Reset()
+			balanceRepo.Reset()
+		})
 		err := paymentService.CreateCustomerBalance(customerID)
 		require.NoError(t, err)
 
@@ -163,14 +186,18 @@ func TestPaymentService(t *testing.T) {
 		require.Len(t, eventDispatcher.events, 1)
 		require.Equal(t, model.RefundCreated{}.Type(), eventDispatcher.events[0].Type())
 
-		if event, ok := eventDispatcher.events[0].(model.RefundCreated); ok {
-			require.Equal(t, orderID, event.OrderID)
-			require.Equal(t, customerID, event.CustomerID)
-		}
+		e := eventDispatcher.events[0].(model.RefundCreated)
+		require.Equal(t, orderID, e.OrderID)
+		require.Equal(t, customerID, e.CustomerID)
+
 	})
-	eventDispatcher.Reset()
 
 	t.Run("Create transaction when customer balance not found", func(t *testing.T) {
+		t.Cleanup(func() {
+			eventDispatcher.Reset()
+			paymentRepo.Reset()
+			balanceRepo.Reset()
+		})
 		nonExistentCustomerID := uuid.Must(uuid.NewV7())
 		amount := 50.0
 		_, err := paymentService.CreateTransaction(orderID, nonExistentCustomerID, amount)
@@ -178,9 +205,13 @@ func TestPaymentService(t *testing.T) {
 
 		require.Len(t, eventDispatcher.events, 0)
 	})
-	eventDispatcher.Reset()
 
 	t.Run("Create refund when customer balance not found", func(t *testing.T) {
+		t.Cleanup(func() {
+			eventDispatcher.Reset()
+			paymentRepo.Reset()
+			balanceRepo.Reset()
+		})
 		nonExistentCustomerID := uuid.Must(uuid.NewV7())
 		amount := 50.0
 		_, err := paymentService.CreateRefund(orderID, nonExistentCustomerID, amount)
@@ -188,9 +219,13 @@ func TestPaymentService(t *testing.T) {
 
 		require.Len(t, eventDispatcher.events, 0)
 	})
-	eventDispatcher.Reset()
 
 	t.Run("Add amount to balance when customer not found", func(t *testing.T) {
+		t.Cleanup(func() {
+			eventDispatcher.Reset()
+			paymentRepo.Reset()
+			balanceRepo.Reset()
+		})
 		nonExistentCustomerID := uuid.Must(uuid.NewV7())
 		amount := 50.0
 		err := paymentService.AddAmountToBalance(nonExistentCustomerID, amount)
@@ -198,7 +233,6 @@ func TestPaymentService(t *testing.T) {
 
 		require.Len(t, eventDispatcher.events, 0)
 	})
-	eventDispatcher.Reset()
 }
 
 var _ model.PaymentRepository = &mockPaymentRepository{}

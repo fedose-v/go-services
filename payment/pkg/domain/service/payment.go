@@ -39,6 +39,10 @@ type paymentService struct {
 }
 
 func (p paymentService) CreateTransaction(orderID uuid.UUID, customerID uuid.UUID, amount float64) (uuid.UUID, error) {
+	if amount < 0 {
+		return uuid.Nil, ErrAddingNegativeAmount
+	}
+
 	balance, err := p.balanceRepo.Find(customerID)
 	if err != nil {
 		return uuid.Nil, err
@@ -81,6 +85,10 @@ func (p paymentService) CreateTransaction(orderID uuid.UUID, customerID uuid.UUI
 }
 
 func (p paymentService) CreateRefund(orderID uuid.UUID, customerID uuid.UUID, amount float64) (uuid.UUID, error) {
+	if amount < 0 {
+		return uuid.Nil, ErrAddingNegativeAmount
+	}
+
 	balance, err := p.balanceRepo.Find(customerID)
 	if err != nil {
 		return uuid.Nil, err
