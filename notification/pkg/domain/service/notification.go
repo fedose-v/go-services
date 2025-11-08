@@ -2,9 +2,10 @@ package service
 
 import (
 	"github.com/google/uuid"
+	"time"
+
 	"notification/pkg/common/infrastructure/event"
 	"notification/pkg/domain/model"
-	"time"
 )
 
 type Notification interface {
