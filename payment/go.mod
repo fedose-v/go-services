@@ -1,6 +1,5 @@
 module payment
 
-// TODO: поменять имя
 
 go 1.23.0
 
