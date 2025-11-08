@@ -27,6 +27,9 @@ func TestUserService(t *testing.T) {
 	email := "victor.wembanyama@example.com"
 
 	t.Run("Create user", func(t *testing.T) {
+		t.Cleanup(func() {
+			eventDispatcher.Reset()
+		})
 		userID, err := userService.CreateUser(login, name, email)
 		require.NoError(t, err)
 
@@ -37,9 +40,11 @@ func TestUserService(t *testing.T) {
 		require.Len(t, eventDispatcher.events, 1)
 		require.Equal(t, model.UserCreated{}.Type(), eventDispatcher.events[0].Type())
 	})
-	eventDispatcher.Reset()
 
 	t.Run("Update user", func(t *testing.T) {
+		t.Cleanup(func() {
+			eventDispatcher.Reset()
+		})
 		userID, err := userService.CreateUser(login, name, email)
 		require.NoError(t, err)
 
@@ -57,6 +62,9 @@ func TestUserService(t *testing.T) {
 	})
 
 	t.Run("Update non existed user", func(t *testing.T) {
+		t.Cleanup(func() {
+			eventDispatcher.Reset()
+		})
 		userID := uuid.New()
 		err := userService.UpdateUser(userID, "popular.victor.wembanyama", "Popular Victor Wembanyama", "popular.victor.wembanyama@example.com")
 		require.ErrorIs(t, err, model.ErrUserNotFound)
@@ -65,6 +73,9 @@ func TestUserService(t *testing.T) {
 	})
 
 	t.Run("Delete user", func(t *testing.T) {
+		t.Cleanup(func() {
+			eventDispatcher.Reset()
+		})
 		userID, err := userService.CreateUser(login, name, email)
 		require.NoError(t, err)
 
@@ -77,16 +88,17 @@ func TestUserService(t *testing.T) {
 		require.Equal(t, model.UserCreated{}.Type(), eventDispatcher.events[0].Type())
 		require.Equal(t, model.UserDeleted{}.Type(), eventDispatcher.events[1].Type())
 	})
-	eventDispatcher.Reset()
 
 	t.Run("Delete non existed user", func(t *testing.T) {
+		t.Cleanup(func() {
+			eventDispatcher.Reset()
+		})
 		newID, _ := repo.NextID()
 		err := userService.DeleteUser(newID)
 		require.ErrorIs(t, err, model.ErrUserNotFound)
 
 		require.Len(t, eventDispatcher.events, 0)
 	})
-	eventDispatcher.Reset()
 }
 
 var _ model.UserRepository = &mockUserRepository{}
