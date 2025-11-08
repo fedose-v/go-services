@@ -1,8 +1,9 @@
 package service
 
 import (
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 
 	"user/pkg/common/infrastructure/event"
 	"user/pkg/domain/model"
@@ -10,6 +11,7 @@ import (
 
 type User interface {
 	CreateUser(login string, name string, email string) (uuid.UUID, error)
+	UpdateUser(userID uuid.UUID, login string, name string, email string) error
 	DeleteUser(userID uuid.UUID) error
 }
 
@@ -61,5 +63,34 @@ func (o userService) DeleteUser(userID uuid.UUID) error {
 
 	return o.dispatcher.Dispatch(model.UserDeleted{
 		ID: userID,
+	})
+}
+
+func (o userService) UpdateUser(userID uuid.UUID, login string, name string, email string) error {
+	user, err := o.repo.Find(userID)
+	if err != nil {
+		return err
+	}
+
+	if len(login) > 0 {
+		user.Login = login
+	}
+	if len(name) > 0 {
+		user.Name = name
+	}
+	if len(email) > 0 {
+		user.Email = email
+	}
+
+	err = o.repo.Store(user)
+	if err != nil {
+		return err
+	}
+
+	return o.dispatcher.Dispatch(model.UserUpdated{
+		ID:    userID,
+		Login: user.Login,
+		Name:  user.Name,
+		Email: user.Email,
 	})
 }

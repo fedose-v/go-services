@@ -39,6 +39,31 @@ func TestUserService(t *testing.T) {
 	})
 	eventDispatcher.Reset()
 
+	t.Run("Update user", func(t *testing.T) {
+		userID, err := userService.CreateUser(login, name, email)
+		require.NoError(t, err)
+
+		err = userService.UpdateUser(userID, "popular.victor.wembanyama", "Popular Victor Wembanyama", "popular.victor.wembanyama@example.com")
+		require.NoError(t, err)
+
+		require.NotNil(t, repo.store[userID])
+		require.Equal(t, "popular.victor.wembanyama", repo.store[userID].Login)
+		require.Equal(t, "Popular Victor Wembanyama", repo.store[userID].Name)
+		require.Equal(t, "popular.victor.wembanyama@example.com", repo.store[userID].Email)
+
+		require.Len(t, eventDispatcher.events, 2)
+		require.Equal(t, model.UserCreated{}.Type(), eventDispatcher.events[0].Type())
+		require.Equal(t, model.UserUpdated{}.Type(), eventDispatcher.events[1].Type())
+	})
+
+	t.Run("Update non existed user", func(t *testing.T) {
+		userID := uuid.New()
+		err := userService.UpdateUser(userID, "popular.victor.wembanyama", "Popular Victor Wembanyama", "popular.victor.wembanyama@example.com")
+		require.ErrorIs(t, err, model.ErrUserNotFound)
+
+		require.Len(t, eventDispatcher.events, 0)
+	})
+
 	t.Run("Delete user", func(t *testing.T) {
 		userID, err := userService.CreateUser(login, name, email)
 		require.NoError(t, err)

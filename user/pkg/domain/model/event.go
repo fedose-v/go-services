@@ -18,6 +18,17 @@ func (e UserCreated) Type() string {
 	return "UserCreated"
 }
 
+type UserUpdated struct {
+	ID    uuid.UUID
+	Login string
+	Name  string
+	Email string
+}
+
+func (e UserUpdated) Type() string {
+	return "UserUpdated"
+}
+
 type UserDeleted struct {
 	ID uuid.UUID
 }
