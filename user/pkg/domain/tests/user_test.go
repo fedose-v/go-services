@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"user/pkg/common/infrastructure/event"
+	"user/pkg/common/domain/event"
 	"user/pkg/domain/model"
 	"user/pkg/domain/service"
 )
@@ -48,7 +48,11 @@ func TestUserService(t *testing.T) {
 		userID, err := userService.CreateUser(login, name, email)
 		require.NoError(t, err)
 
-		err = userService.UpdateUser(userID, "popular.victor.wembanyama", "Popular Victor Wembanyama", "popular.victor.wembanyama@example.com")
+		newLogin := "popular.victor.wembanyama"
+		newName := "Popular Victor Wembanyama"
+		newEmail := "popular.victor.wembanyama@example.com"
+
+		err = userService.UpdateUser(userID, &newLogin, &newName, &newEmail)
 		require.NoError(t, err)
 
 		require.NotNil(t, repo.store[userID])
@@ -66,7 +70,12 @@ func TestUserService(t *testing.T) {
 			eventDispatcher.Reset()
 		})
 		userID := uuid.New()
-		err := userService.UpdateUser(userID, "popular.victor.wembanyama", "Popular Victor Wembanyama", "popular.victor.wembanyama@example.com")
+
+		newLogin := "popular.victor.wembanyama"
+		newName := "Popular Victor Wembanyama"
+		newEmail := "popular.victor.wembanyama@example.com"
+
+		err := userService.UpdateUser(userID, &newLogin, &newName, &newEmail)
 		require.ErrorIs(t, err, model.ErrUserNotFound)
 
 		require.Len(t, eventDispatcher.events, 0)

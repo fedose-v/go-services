@@ -5,7 +5,20 @@ option go_package = "/.;userinternal";
 
 service MicroserviceTemplateInternalService {
   rpc Ping(PingRequest) returns (PingResponse);
+
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
 }
+
+message CreateUserRequest {
+  string login = 1;
+  string email = 2;
+  string phone = 3;
+}
+
+message CreateUserResponse {
+  string userID = 1;
+}
+
 
 message PingRequest {}
 message PingResponse {

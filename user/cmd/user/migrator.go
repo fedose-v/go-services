@@ -11,34 +11,9 @@ import (
 	migrator "github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/mysql"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
-	log "github.com/sirupsen/logrus"
-	"github.com/urfave/cli/v2"
 )
 
 const pathToMigrations = "data/mysql/migrations"
-
-func migrate(
-	config *config,
-	logger *log.Logger,
-) *cli.Command {
-	return &cli.Command{
-		Name:  "migrate",
-		Usage: "Apply database migrations",
-		Action: func(_ *cli.Context) error {
-			db, err := initMySQL(config)
-			if err != nil {
-				return err
-			}
-
-			if err := applyMigrations(db.DB, pathToMigrations); err != nil {
-				return fmt.Errorf("migration failed: %w", err)
-			}
-
-			logger.Infof("Migrations applied successfully")
-			return nil
-		},
-	}
-}
 
 func applyMigrations(db *sql.DB, migrationsDir string) error {
 	absPath, err := filepath.Abs(migrationsDir)

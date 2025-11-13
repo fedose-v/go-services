@@ -28,6 +28,10 @@ type config struct {
 	DBPassword string `envconfig:"db_password"`
 	DBMaxConn  int    `envconfig:"db_max_conn"`
 
+	AMQPUsername string `envconfig:"amqp_username"`
+	AMQPPassword string `envconfig:"amqp_password"`
+	AMQPHost     string `envconfig:"amqp_host"`
+
 	TestGRPCAddress string `envconfig:"test_grpc_address" default:"test:8081"`
 }
 

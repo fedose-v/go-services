@@ -20,9 +20,9 @@ func (e UserCreated) Type() string {
 
 type UserUpdated struct {
 	ID    uuid.UUID
-	Login string
-	Name  string
-	Email string
+	Login *string
+	Name  *string
+	Email *string
 }
 
 func (e UserUpdated) Type() string {

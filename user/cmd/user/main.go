@@ -7,8 +7,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	applogger "gitea.xscloud.ru/xscloud/golib/pkg/application/logging"
+	"gitea.xscloud.ru/xscloud/golib/pkg/infrastructure/logging"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 )
 
@@ -22,24 +23,22 @@ func main() {
 	if err != nil {
 		stdlog.Fatal(err)
 	}
-	logger, err := initLogger(cnf.LogLevel)
-	if err != nil {
-		stdlog.Fatal("failed to initialize logger")
-	}
+
+	logger := logging.NewJSONLogger(&logging.Config{AppName: appID})
 
 	err = runApp(ctx, cnf, logger)
 	switch errors.Cause(err) {
 	case nil:
-		logger.Infof("call finished")
+		logger.Info("service finished")
 	default:
-		logger.Fatal(err)
+		logger.FatalError(err)
 	}
 }
 
 func runApp(
 	ctx context.Context,
 	config *config,
-	logger *log.Logger,
+	logger applogger.Logger,
 ) (err error) {
 	closer := &multiCloser{}
 	defer func() {
@@ -55,24 +54,8 @@ func runApp(
 		Name: appID,
 		Commands: []*cli.Command{
 			service(config, logger, closer),
-			migrate(config, logger),
 		},
 	}
 
 	return app.RunContext(ctx, os.Args)
-}
-
-func initLogger(level string) (*log.Logger, error) {
-	lvl, err := log.ParseLevel(level)
-	if err != nil {
-		return nil, err
-	}
-
-	logger := log.New()
-	logger.SetLevel(lvl)
-	logger.SetFormatter(&log.JSONFormatter{
-		TimestampFormat: "2006-01-02T15:04:05.000Z07:00",
-	})
-
-	return logger, nil
 }

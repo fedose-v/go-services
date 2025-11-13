@@ -4,13 +4,14 @@ import (
 	"context"
 	"time"
 
+	applogger "gitea.xscloud.ru/xscloud/golib/pkg/application/logging"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/status"
 )
 
 type ErrorInterceptor struct {
-	Logger *log.Logger
+	Logger applogger.Logger
 }
 
 func (i ErrorInterceptor) TranslateGRPCError(err error) error {
@@ -25,7 +26,7 @@ func (i ErrorInterceptor) TranslateGRPCError(err error) error {
 	return status.Error(getGRPCCode(err), err.Error())
 }
 
-func MakeLoggerServerInterceptor(logger *log.Logger) grpc.UnaryServerInterceptor {
+func MakeLoggerServerInterceptor(logger applogger.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
 		start := time.Now()
 
@@ -37,15 +38,11 @@ func MakeLoggerServerInterceptor(logger *log.Logger) grpc.UnaryServerInterceptor
 			"route":    info.FullMethod,
 		}
 
-		loggerWithFields := logger.WithFields(fields)
+		loggerWithFields := logger.WithFields(applogger.Fields(fields))
 		if err == nil {
-			loggerWithFields.Infof("call finished")
+			loggerWithFields.Info("call finished")
 		} else {
-			if isWarnLevel(err) {
-				loggerWithFields.Warnf("call failed: %v", err)
-			} else {
-				loggerWithFields.Errorf("call failed: %v", err)
-			}
+			loggerWithFields.Warning(err, "call failed")
 		}
 		return resp, err
 	}

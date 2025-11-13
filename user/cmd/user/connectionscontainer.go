@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 
+	"gitea.xscloud.ru/xscloud/golib/pkg/application/logging"
+	"gitea.xscloud.ru/xscloud/golib/pkg/infrastructure/amqp"
+	"gitea.xscloud.ru/xscloud/golib/pkg/infrastructure/mysql"
+	outboxmigrations "gitea.xscloud.ru/xscloud/golib/pkg/infrastructure/outbox/migrations"
 	"github.com/jmoiron/sqlx"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -37,7 +41,7 @@ func (m *multiCloser) Close() error {
 
 func newConnectionsContainer(
 	config *config,
-	_ *log.Logger,
+	logger logging.Logger,
 	multiCloser *multiCloser,
 ) (container *connectionsContainer, err error) {
 	containerBuilder := func() error {
@@ -47,14 +51,31 @@ func newConnectionsContainer(
 		if err != nil {
 			return fmt.Errorf("failed to init DB for migrations: %w", err)
 		}
-		defer db.Close()
-
-		if err = applyMigrations(db.DB, pathToMigrations); err != nil {
-			return fmt.Errorf("migration failed: %w", err)
-		}
-		log.Infof("Migrations applied successfully")
 		multiCloser.Add(db)
-		container.db = db
+
+		client := mysql.NewTransactionalClientFromSQLx(db)
+		container.connectionPool = mysql.NewConnectionPool(client)
+		container.client = client
+
+		err = func() error {
+			migrator, release, err := outboxmigrations.NewOutboxMigrator(context.Background(), container.connectionPool, logger, "domain")
+			if err != nil {
+				return err
+			}
+			defer release()
+			err = migrator.Migrate()
+			if err != nil {
+				return err
+			}
+			if err = applyMigrations(db.DB, pathToMigrations); err != nil {
+				return fmt.Errorf("migration failed: %w", err)
+			}
+			logger.Info("Migrations applied successfully")
+			return nil
+		}()
+		if err != nil {
+			return err
+		}
 
 		// TODO: это конекшены к другим сервисам (в данном случае - gRPC)
 		testConnection, err := grpc.NewClient(
@@ -68,6 +89,12 @@ func newConnectionsContainer(
 		multiCloser.Add(testConnection)
 		container.testConnection = testConnection
 
+		container.amqpConnection = amqp.NewAMQPConnection(appID, &amqp.ConnectionConfig{
+			User:     config.AMQPUsername,
+			Password: config.AMQPPassword,
+			Host:     config.AMQPHost,
+		}, logger)
+
 		return nil
 	}
 
@@ -75,7 +102,9 @@ func newConnectionsContainer(
 }
 
 type connectionsContainer struct {
-	db             *sqlx.DB
+	connectionPool mysql.ConnectionPool
+	client         mysql.ClientContext
+	amqpConnection amqp.Connection
 	testConnection grpc.ClientConnInterface
 }
 

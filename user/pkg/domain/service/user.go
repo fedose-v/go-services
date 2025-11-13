@@ -5,13 +5,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"user/pkg/common/infrastructure/event"
+	"user/pkg/common/domain/event"
 	"user/pkg/domain/model"
 )
 
 type User interface {
 	CreateUser(login string, name string, email string) (uuid.UUID, error)
-	UpdateUser(userID uuid.UUID, login string, name string, email string) error
+	UpdateUser(userID uuid.UUID, login *string, name *string, email *string) error
 	DeleteUser(userID uuid.UUID) error
 }
 
@@ -66,20 +66,20 @@ func (o userService) DeleteUser(userID uuid.UUID) error {
 	})
 }
 
-func (o userService) UpdateUser(userID uuid.UUID, login string, name string, email string) error {
+func (o userService) UpdateUser(userID uuid.UUID, login *string, name *string, email *string) error {
 	user, err := o.repo.Find(userID)
 	if err != nil {
 		return err
 	}
 
-	if len(login) > 0 {
-		user.Login = login
+	if login != nil {
+		user.Login = *login
 	}
-	if len(name) > 0 {
-		user.Name = name
+	if name != nil {
+		user.Name = *name
 	}
-	if len(email) > 0 {
-		user.Email = email
+	if email != nil {
+		user.Email = *email
 	}
 
 	err = o.repo.Store(user)
@@ -89,8 +89,8 @@ func (o userService) UpdateUser(userID uuid.UUID, login string, name string, ema
 
 	return o.dispatcher.Dispatch(model.UserUpdated{
 		ID:    userID,
-		Login: user.Login,
-		Name:  user.Name,
-		Email: user.Email,
+		Login: login,
+		Name:  name,
+		Email: email,
 	})
 }
