@@ -19,12 +19,12 @@ jobs:
       with:
         go-version: '1.25'
 
-    - name: Tidy dependencies for user
+    - name: Tidy dependencies for order
       run: |
         cd user
         go mod tidy
 
-    - name: Run tests for user
+    - name: Run tests for order
       run: |
         cd user
         go test ./pkg/... -v -race -coverprofile=coverage.out
@@ -41,12 +41,12 @@ jobs:
       with:
         go-version: '1.25'
 
-    - name: Tidy dependencies for inventory
+    - name: Tidy dependencies for notification
       run: |
         cd inventory
         go mod tidy
 
-    - name: Run tests for inventory
+    - name: Run tests for notification
       run: |
         cd inventory
         go test ./pkg/... -v -race -coverprofile=coverage.out

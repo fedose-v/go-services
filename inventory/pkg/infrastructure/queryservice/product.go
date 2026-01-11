@@ -3,6 +3,9 @@ package queryservice
 import (
 	"database/sql"
 	"fmt"
+
+	"github.com/google/uuid"
+
 	"inventory/pkg/app/data"
 	"inventory/pkg/app/service"
 )
@@ -51,4 +54,9 @@ func (q queryService) ListProducts() ([]data.ProductData, error) {
 	}
 
 	return products, nil
+}
+
+func (q queryService) FindProduct(id uuid.UUID) (*data.ProductData, error) {
+	//TODO implement me
+	panic("implement me")
 }

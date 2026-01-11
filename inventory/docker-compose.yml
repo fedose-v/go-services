@@ -14,7 +14,7 @@ services:
       INVENTORY_DB_PORT: 3311
       INVENTORY_DB_NAME: inventory
       INVENTORY_DB_USER: inventory
-      INVENTORY_DB_PASSWORD: ${DB_PASSWORD}
+      INVENTORY_DB_PASSWORD: 1234
       INVENTORY_DB_MAX_CONN: 5
     depends_on:
       - inventory-db
@@ -26,8 +26,8 @@ services:
     environment:
       MYSQL_DATABASE: inventory
       MYSQL_USER: inventory
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_PASSWORD: 1234
+      MYSQL_ROOT_PASSWORD: 1234
     ports:
       - "3311:3311"
     volumes:

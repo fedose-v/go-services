@@ -1,8 +1,11 @@
 module payment
 
-go 1.23.0
+go 1.25.3
+
+replace gitea.xscloud.ru/xscloud/golib v1.2.4 => github.com/veresnikov/rp-golib v1.2.4
 
 require (
+	gitea.xscloud.ru/xscloud/golib v1.2.4
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/golang-migrate/migrate/v4 v4.19.0
 	github.com/google/uuid v1.6.0

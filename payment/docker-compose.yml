@@ -14,7 +14,7 @@ services:
       PAYMENT_DB_PORT: 3311
       PAYMENT_DB_NAME: payment
       PAYMENT_DB_USER: payment
-      PAYMENT_DB_PASSWORD: ${DB_PASSWORD}
+      PAYMENT_DB_PASSWORD: 1234
       PAYMENT_DB_MAX_CONN: 5
     depends_on:
       - payment-db
@@ -26,8 +26,8 @@ services:
     environment:
       MYSQL_DATABASE: payment
       MYSQL_USER: payment
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_PASSWORD: 1234
+      MYSQL_ROOT_PASSWORD: 1234
     ports:
       - "3306:3306"
     volumes:

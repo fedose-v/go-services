@@ -1,4 +1,4 @@
-FROM golang:1.23-bookworm AS builder
+FROM golang:1.25-alpine3.21 AS builder
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends --no-install-suggests \
