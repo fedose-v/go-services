@@ -1,9 +1,7 @@
 package main
 
 import (
-	"context"
 	"errors"
-	"net"
 	"net/http"
 
 	"gitea.xscloud.ru/xscloud/golib/pkg/application/logging"
@@ -14,28 +12,26 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
 
-	"inventory/api/server/inventorypublicapi"
 	appservice "inventory/pkg/inventory/app/service"
 	"inventory/pkg/inventory/infrastructure/integrationevent"
 	inframysql "inventory/pkg/inventory/infrastructure/mysql"
-	queryservice "inventory/pkg/inventory/infrastructure/mysql/query"
-	"inventory/pkg/inventory/infrastructure/transport"
-	"inventory/pkg/inventory/infrastructure/transport/middlewares"
+	"inventory/pkg/inventory/infrastructure/temporal"
+	"inventory/pkg/inventory/infrastructure/temporal/worker"
 )
 
-type serviceConfig struct {
+type workflowWorkerConfig struct {
 	Service  Service  `envconfig:"service"`
 	Database Database `envconfig:"database" required:"true"`
+	Temporal Temporal `envconfig:"temporal" required:"true"`
 }
 
-func service(logger logging.Logger) *cli.Command {
+func workflowWorker(logger logging.Logger) *cli.Command {
 	return &cli.Command{
-		Name:   "service",
+		Name:   "workflow-worker",
 		Before: migrateImpl(logger),
 		Action: func(c *cli.Context) error {
-			cnf, err := parseEnvs[serviceConfig]()
+			cnf, err := parseEnvs[workflowWorkerConfig]()
 			if err != nil {
 				return err
 			}
@@ -52,34 +48,27 @@ func service(logger logging.Logger) *cli.Command {
 			closer.AddCloser(databaseConnector)
 			databaseConnectionPool := mysql.NewConnectionPool(databaseConnector.TransactionalClient())
 
+			temporalClient, err := temporal.NewClient(logger, cnf.Temporal.Host)
+			if err != nil {
+				return err
+			}
+			closer.AddCloser(libio.CloserFunc(func() error {
+				temporalClient.Close()
+				return nil
+			}))
+
 			libUoW := mysql.NewUnitOfWork(databaseConnectionPool, inframysql.NewRepositoryProvider)
 			libLUow := mysql.NewLockableUnitOfWork(libUoW, mysql.NewLocker(databaseConnectionPool))
 			uow := inframysql.NewUnitOfWork(libUoW)
 			luow := inframysql.NewLockableUnitOfWork(libLUow)
 			eventDispatcher := outbox.NewEventDispatcher(appID, integrationevent.TransportName, integrationevent.NewEventSerializer(), libUoW)
 
-			inventoryPublicAPIServer := transport.NewInventoryInternalAPI(
-				queryservice.NewProductQueryService(databaseConnector.TransactionalClient()),
-				appservice.NewProductService(uow, luow, eventDispatcher),
-			)
-
 			errGroup := errgroup.Group{}
 			errGroup.Go(func() error {
-				listener, err := net.Listen("tcp", cnf.Service.GRPCAddress)
-				if err != nil {
-					return err
-				}
-				grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(
-					middlewares.NewGRPCLoggingMiddleware(logger),
-					middlewares.NewGRPCMetricsMiddleware(),
-				))
-				inventorypublicapi.RegisterInventoryPublicAPIServer(grpcServer, inventoryPublicAPIServer)
-				graceCallback(c.Context, logger, cnf.Service.GracePeriod, func(_ context.Context) error {
-					grpcServer.GracefulStop()
-					return nil
-				})
-				return grpcServer.Serve(listener)
+				w := worker.NewWorker(temporalClient, appservice.NewProductService(uow, luow, eventDispatcher))
+				return w.Run(worker.InterruptChannel())
 			})
+
 			errGroup.Go(func() error {
 				router := mux.NewRouter()
 				registerHealthcheck(router)

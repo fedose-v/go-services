@@ -1,0 +1,31 @@
+syntax = "proto3";
+package Inventory;
+
+option go_package = "/.;inventorypublicapi";
+
+service InventoryPublicAPI {
+  rpc StoreProduct(StoreInventoryRequest) returns (StoreInventoryResponse);
+  rpc FindProduct(FindInventoryRequest) returns (FindInventoryResponse);
+}
+
+message StoreInventoryRequest {
+  string productID = 1;
+  string name = 2;
+  double price = 3;
+  int64 quantity = 4;
+}
+
+message StoreInventoryResponse {
+  string productID = 1;
+}
+
+message FindInventoryRequest {
+  string productID = 1;
+}
+
+message FindInventoryResponse {
+  string productID = 1;
+  string name = 2;
+  double price = 3;
+  int64 quantity = 4;
+}

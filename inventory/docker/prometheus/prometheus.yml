@@ -1,0 +1,18 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "inventory"
+    static_configs:
+      - targets:
+          - "inventory:8082"
+          - "inventory-workflow-worker:8082"
+          - "inventory-message-handler:8082"
+    metrics_path: /metrics
+
+  - job_name: "temporal"
+    static_configs:
+      - targets:
+          - "inventory-temporal:8000"
+    metrics_path: /metrics
