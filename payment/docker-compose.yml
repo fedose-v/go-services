@@ -1,38 +1,170 @@
-version: '3.3'
-
 services:
   payment:
-    image: payment
     container_name: payment
     build:
       context: .
       dockerfile: Dockerfile
+    command:
+      - service
     ports:
-      - "8081:8081" # GRPC API port
+      - "8081:8081"
+      - "8082:8082"
     environment:
-      PAYMENT_DB_HOST: payment-db
-      PAYMENT_DB_PORT: 3311
-      PAYMENT_DB_NAME: payment
-      PAYMENT_DB_USER: payment
-      PAYMENT_DB_PASSWORD: 1234
-      PAYMENT_DB_MAX_CONN: 5
+      USER_DATABASE_HOST: payment-db
+      USER_DATABASE_NAME: payment
+      USER_DATABASE_USER: payment
+      USER_DATABASE_PASSWORD: 1234
     depends_on:
-      - payment-db
-    restart: unless-stopped
+      payment-db:
+        condition: service_healthy
+
+  payment-workflow-worker:
+    container_name: payment-workflow-worker
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      - workflow-worker
+    environment:
+      USER_DATABASE_HOST: payment-db
+      USER_DATABASE_NAME: payment
+      USER_DATABASE_USER: payment
+      USER_DATABASE_PASSWORD: 1234
+
+      USER_TEMPORAL_HOST: payment-temporal:7234
+    depends_on:
+      payment-db:
+        condition: service_healthy
+
+  payment-message-handler:
+    container_name: payment-message-handler
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      - message-handler
+    environment:
+      USER_DATABASE_HOST: payment-db
+      USER_DATABASE_NAME: payment
+      USER_DATABASE_USER: payment
+      USER_DATABASE_PASSWORD: 1234
+
+      USER_AMQP_HOST: payment-rmq
+      USER_AMQP_USER: guest
+      USER_AMQP_PASSWORD: guest
+
+      USER_TEMPORAL_HOST: payment-temporal:7234
+    depends_on:
+      payment-db:
+        condition: service_healthy
+      payment-rmq:
+        condition: service_healthy
 
   payment-db:
-    image: percona:8.0
+    image: "mysql:8.3"
     container_name: payment-db
+    command: [ "--max_connections=100" ]
+    volumes:
+      - "payment-db-model:/var/lib/mysql"
     environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: yes
       MYSQL_DATABASE: payment
       MYSQL_USER: payment
       MYSQL_PASSWORD: 1234
-      MYSQL_ROOT_PASSWORD: 1234
     ports:
-      - "3306:3306"
+      - "3307:3307"
+    healthcheck:
+      test: mysql -h127.0.0.1 -uroot -e 'SELECT 1'
+      interval: 10s
+      timeout: 30s
+
+  payment-rmq:
+    image: "rabbitmq:4.2.0-management-alpine"
+    container_name: payment-rmq
+    hostname: payment-rmq
+    ports:
+      - "15672:15672"
     volumes:
-      - payment-db-data:/var/lib/mysql
-    restart: unless-stopped
+      - "payment-rmq-model:/var/lib/rabbitmq/mnesia"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  payment-temporal:
+    container_name: payment-temporal
+    depends_on:
+      payment-db:
+        condition: service_healthy
+    environment:
+      - DB=mysql8
+      - DB_PORT=3306
+      - MYSQL_USER=root
+      - MYSQL_SEEDS=payment-db
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - TEMPORAL_ADDRESS=payment-temporal:7234
+      - TEMPORAL_CLI_ADDRESS=payment-temporal:7234
+      - PROMETHEUS_ENDPOINT=0.0.0.0:8000
+    image: temporalio/auto-setup:1.29.1
+    ports:
+      - "7234:7234"
+    volumes:
+      - ./docker/model/temporal/dynamicconfig:/etc/temporal/config/dynamicconfig
+
+  payment-temporal-admin-tools:
+    container_name: payment-temporal-admin-tools
+    depends_on:
+      - payment-temporal
+    environment:
+      - TEMPORAL_ADDRESS=payment-temporal:7234
+      - TEMPORAL_CLI_ADDRESS=payment-temporal:7234
+    image: temporalio/admin-tools:1.29.1-tctl-1.18.4-cli-1.5.0
+    stdin_open: true
+    tty: true
+
+  payment-temporal-ui:
+    container_name: payment-temporal-ui
+    depends_on:
+      - payment-temporal
+    environment:
+      - TEMPORAL_ADDRESS=payment-temporal:7234
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    image: temporalio/ui:2.34.0
+    ports:
+      - "8080:8080"
+
+  payment-prometheus:
+    image: prom/prometheus:v3.8.0
+    container_name: payment-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - payment-prometheus-model:/prometheus
+    depends_on:
+      - payment
+      - payment-workflow-worker
+      - payment-message-handler
+
+  payment-grafana:
+    image: grafana/grafana:11.1.4
+    container_name: payment-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - payment-grafana-model:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - payment-prometheus
 
 volumes:
   payment-db-data:
+  payment-rmq-data:
+  payment-prometheus-data:
+  payment-grafana-data:

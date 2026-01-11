@@ -1,0 +1,27 @@
+syntax = "proto3";
+package Payment;
+
+option go_package = "/.;paymentpublicapi";
+
+service PaymentPublicAPI {
+  rpc StoreCustomerBalance(StoreUserBalanceRequest) returns (StoreCustomerBalanceResponse);
+  rpc FindCustomerBalance(FindCustomerBalanceRequest) returns (FindCustomerBalanceResponse);
+}
+
+message StoreUserBalanceRequest {
+  string customerID = 1;
+  double balance = 2;
+}
+
+message StoreCustomerBalanceResponse {
+  string balanceID = 1;
+}
+
+message FindCustomerBalanceRequest {
+  string customerID = 1;
+}
+
+message FindCustomerBalanceResponse {
+  string customerID = 1;
+  double balance = 2;
+}

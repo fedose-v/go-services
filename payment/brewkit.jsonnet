@@ -5,8 +5,7 @@ local appIDs = [
 ];
 
 local proto = [
-    'api/client/testinternal/testinternal.proto',
-    'api/server/paymentinternal/paymentinternal.proto',
+    'api/server/paymentpublicapi/paymentpublicapi.proto',
 ];
 
 project.project(appIDs, proto)
