@@ -7,6 +7,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    command:
+      - service
     ports:
       - "8081:8081" # GRPC API port
     environment:
@@ -14,25 +16,126 @@ services:
       ORDER_DB_PORT: 3311
       ORDER_DB_NAME: order
       ORDER_DB_USER: order
-      ORDER_DB_PASSWORD: ${DB_PASSWORD}
+      ORDER_DB_PASSWORD: 1234
       ORDER_DB_MAX_CONN: 5
     depends_on:
-      - order-db
+      order-db:
+        condition: service_healthy
     restart: unless-stopped
 
   order-db:
-    image: percona:8.0
+    image: mysql:8.3
     container_name: order-db
+    command: [ "--max_connections=100" ]
     environment:
       MYSQL_DATABASE: order
       MYSQL_USER: order
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_PASSWORD: 1234
+      MYSQL_ROOT_PASSWORD: 1234
     ports:
       - "3306:3306"
     volumes:
       - order-db-data:/var/lib/mysql
-    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "--password=1234" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
+  order-workflow-worker:
+    container_name: order-workflow-worker
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      - workflow-worker
+    environment:
+      ORDER_DATABASE_HOST: order-db
+      ORDER_DATABASE_NAME: order
+      ORDER_DATABASE_USER: order
+      ORDER_DATABASE_PASSWORD: 1234
+      ORDER_TEMPORAL_HOST: order-temporal:7233
+    depends_on:
+      order-db:
+        condition: service_healthy
+
+  order-message-handler:
+    container_name: order-message-handler
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      - message-handler
+    environment:
+      ORDER_DATABASE_HOST: order-db
+      ORDER_DATABASE_NAME: order
+      ORDER_DATABASE_USER: order
+      ORDER_DATABASE_PASSWORD: 1234
+      ORDER_AMQP_HOST: order-rmq
+      ORDER_AMQP_USER: guest
+      ORDER_AMQP_PASSWORD: guest
+      ORDER_TEMPORAL_HOST: order-temporal:7233
+    depends_on:
+      order-db:
+        condition: service_healthy
+      order-rmq:
+        condition: service_healthy
+
+  order-rmq:
+    image: "rabbitmq:4.2.0-management-alpine"
+    container_name: order-rmq
+    hostname: order-rmq
+    ports:
+      - "15676:15672"
+    volumes:
+      - "order-rmq-data:/var/lib/rabbitmq/mnesia"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  order-temporal:
+    container_name: order-temporal
+    depends_on:
+      order-db:
+        condition: service_healthy
+    environment:
+      - DB=mysql8
+      - DB_PORT=3306
+      - MYSQL_USER=root
+      - MYSQL_PWD=1234
+      - MYSQL_SEEDS=order-db
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - TEMPORAL_ADDRESS=order-temporal:7233
+      - TEMPORAL_CLI_ADDRESS=order-temporal:7233
+    image: temporalio/auto-setup:1.29.1
+    ports:
+      - "7233:7233"
+    volumes:
+      - ./docker/data/temporal/dynamicconfig:/etc/temporal/config/dynamicconfig
+
+  order-temporal-admin-tools:
+    container_name: order-temporal-admin-tools
+    depends_on:
+      - order-temporal
+    environment:
+      - TEMPORAL_ADDRESS=order-temporal:7233
+      - TEMPORAL_CLI_ADDRESS=order-temporal:7233
+    image: temporalio/admin-tools:1.29.1-tctl-1.18.4-cli-1.5.0
+    stdin_open: true
+    tty: true
+
+  order-temporal-ui:
+    container_name: order-temporal-ui
+    depends_on:
+      - order-temporal
+    environment:
+      - TEMPORAL_ADDRESS=order-temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    image: temporalio/ui:2.34.0
+    ports:
+      - "8094:8080"
 volumes:
   order-db-data:
+  order-rmq-data:

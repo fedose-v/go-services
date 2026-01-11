@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"order/pkg/common/infrastructure/event"
+	commonevent "order/pkg/common/event"
 	"order/pkg/domain/model"
 )
 
@@ -23,7 +23,7 @@ type Order interface {
 	DeleteItem(orderID uuid.UUID, itemID uuid.UUID) error
 }
 
-func NewOrderService(repo model.OrderRepository, dispatcher event.Dispatcher) Order {
+func NewOrderService(repo model.OrderRepository, dispatcher commonevent.Dispatcher) Order {
 	return &orderService{
 		repo:       repo,
 		dispatcher: dispatcher,
@@ -32,7 +32,7 @@ func NewOrderService(repo model.OrderRepository, dispatcher event.Dispatcher) Or
 
 type orderService struct {
 	repo       model.OrderRepository
-	dispatcher event.Dispatcher
+	dispatcher commonevent.Dispatcher
 }
 
 func (o orderService) CreateOrder(customerID uuid.UUID) (uuid.UUID, error) {
@@ -60,7 +60,7 @@ func (o orderService) CreateOrder(customerID uuid.UUID) (uuid.UUID, error) {
 }
 
 func (o orderService) DeleteOrder(orderID uuid.UUID) error {
-	order, err := o.repo.Find(orderID)
+	order, err := o.repo.Find(model.FindSpec{OrderID: &orderID})
 	if err != nil {
 		return model.ErrOrderNotFound
 	}
@@ -81,7 +81,7 @@ func (o orderService) DeleteOrder(orderID uuid.UUID) error {
 }
 
 func (o orderService) SetStatus(orderID uuid.UUID, status model.OrderStatus) error {
-	order, err := o.repo.Find(orderID)
+	order, err := o.repo.Find(model.FindSpec{OrderID: &orderID})
 	if err != nil {
 		return model.ErrOrderNotFound
 	}
@@ -100,7 +100,7 @@ func (o orderService) SetStatus(orderID uuid.UUID, status model.OrderStatus) err
 }
 
 func (o orderService) AddItem(orderID uuid.UUID, productID uuid.UUID, price float64) (uuid.UUID, error) {
-	order, err := o.repo.Find(orderID)
+	order, err := o.repo.Find(model.FindSpec{OrderID: &orderID})
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -130,7 +130,7 @@ func (o orderService) AddItem(orderID uuid.UUID, productID uuid.UUID, price floa
 }
 
 func (o orderService) DeleteItem(orderID uuid.UUID, itemID uuid.UUID) error {
-	order, err := o.repo.Find(orderID)
+	order, err := o.repo.Find(model.FindSpec{OrderID: &orderID})
 	if err != nil {
 		return model.ErrOrderNotFound
 	}

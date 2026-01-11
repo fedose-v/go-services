@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"order/pkg/common/infrastructure/event"
+	commonevent "order/pkg/common/event"
 	"order/pkg/domain/model"
 	"order/pkg/domain/service"
 )
@@ -17,7 +17,7 @@ func TestOrderService(t *testing.T) {
 		store: make(map[uuid.UUID]*model.Order),
 	}
 	eventDispatcher := &mockEventDispatcher{
-		events: make([]event.Event, 0),
+		events: make([]commonevent.Event, 0),
 	}
 
 	orderService := service.NewOrderService(repo, eventDispatcher)
@@ -207,8 +207,8 @@ func (m *mockOrderRepository) Store(order *model.Order) error {
 	return nil
 }
 
-func (m *mockOrderRepository) Find(id uuid.UUID) (*model.Order, error) {
-	order, ok := m.store[id]
+func (m *mockOrderRepository) Find(spec model.FindSpec) (*model.Order, error) {
+	order, ok := m.store[*spec.OrderID]
 	if !ok {
 		return nil, model.ErrOrderNotFound
 	}
@@ -239,18 +239,18 @@ func (m *mockOrderRepository) Delete(id uuid.UUID) error {
 }
 
 type mockEventDispatcher struct {
-	events []event.Event
+	events []commonevent.Event
 }
 
 func (m *mockEventDispatcher) Reset() {
-	m.events = make([]event.Event, 0)
+	m.events = make([]commonevent.Event, 0)
 }
 
-func (m *mockEventDispatcher) ListEvents() []event.Event {
+func (m *mockEventDispatcher) ListEvents() []commonevent.Event {
 	return m.events
 }
 
-func (m *mockEventDispatcher) Dispatch(evt event.Event) error {
+func (m *mockEventDispatcher) Dispatch(evt commonevent.Event) error {
 	m.events = append(m.events, evt)
 	return nil
 }
