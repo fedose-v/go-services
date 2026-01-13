@@ -6,7 +6,7 @@ local appIDs = [
 ];
 
 local proto = [
-    'api/server/orderinternalapi/orderinternalapi.proto',
+    'api/server/orderinternal/orderinternal.proto',
 ];
 
 project.project(appIDs, proto)

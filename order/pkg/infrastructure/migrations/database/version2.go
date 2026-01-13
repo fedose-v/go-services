@@ -19,28 +19,24 @@ type version2 struct {
 }
 
 func (v version2) Version() int64 {
-	return 1
+	return 2
 }
 
 func (v version2) Description() string {
-	return "Create 'order_item' table"
+	return "Create 'local_user' table"
 }
 
 func (v version2) Up(ctx context.Context) error {
 	_, err := v.client.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS order_item
+		CREATE TABLE local_user
 		(
-		    id         BINARY(16) PRIMARY KEY,
-		    order_id   BINARY(16)     NOT NULL,
-		    product_id BINARY(16)     NOT NULL,
-		    price      DECIMAL(10, 2) NOT NULL,
-		    created_at DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		    updated_at DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-		    deleted_at DATETIME       NULL,
-		    FOREIGN KEY (order_id) REFERENCES order (id) ON DELETE CASCADE
-		) ENGINE = InnoDB
-		  DEFAULT CHARSET = utf8mb4
-		  COLLATE = utf8mb4_unicode_ci;
+			user_id       VARCHAR(64)  NOT NULL,
+			login         VARCHAR(32)  NOT NULL,
+			PRIMARY KEY (user_id)
+		)
+			ENGINE = InnoDB
+			CHARACTER SET = utf8mb4
+			COLLATE utf8mb4_unicode_ci;
 	`)
 	return errors.WithStack(err)
 }

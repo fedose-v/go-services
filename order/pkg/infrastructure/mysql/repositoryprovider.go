@@ -21,3 +21,11 @@ type repositoryProvider struct {
 func (r *repositoryProvider) OrderRepository(ctx context.Context) model.OrderRepository {
 	return repository.NewOrderRepository(ctx, r.client)
 }
+
+func (r *repositoryProvider) LocalUserRepository(ctx context.Context) model.LocalUserRepository {
+	return repository.NewLocalUserRepository(ctx, r.client)
+}
+
+func (r *repositoryProvider) LocalProductRepository(ctx context.Context) model.LocalProductRepository {
+	return repository.NewLocalProductRepository(ctx, r.client)
+}

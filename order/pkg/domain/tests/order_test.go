@@ -1,256 +1,158 @@
-package tests
+package service
 
 import (
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
-	commonevent "order/pkg/common/event"
+	"order/pkg/common/domain"
 	"order/pkg/domain/model"
 	"order/pkg/domain/service"
 )
 
-func TestOrderService(t *testing.T) {
-	repo := &mockOrderRepository{
-		store: make(map[uuid.UUID]*model.Order),
-	}
-	eventDispatcher := &mockEventDispatcher{
-		events: make([]commonevent.Event, 0),
-	}
-
-	orderService := service.NewOrderService(repo, eventDispatcher)
-
-	customerID := uuid.Must(uuid.NewV7())
-
-	t.Run("Create order", func(t *testing.T) {
-		orderID, err := orderService.CreateOrder(customerID)
-		require.NoError(t, err)
-
-		require.NotNil(t, repo.store[orderID])
-		require.Equal(t, model.Open, repo.store[orderID].Status)
-		require.Len(t, eventDispatcher.events, 1)
-		require.Equal(t, model.OrderCreated{}.Type(), eventDispatcher.events[0].Type())
-	})
-	eventDispatcher.Reset()
-
-	t.Run("Delete order", func(t *testing.T) {
-		orderID, err := orderService.CreateOrder(customerID)
-		require.NoError(t, err)
-
-		err = orderService.DeleteOrder(orderID)
-		require.NoError(t, err)
-
-		require.NotNil(t, repo.store[orderID])
-		require.NotNil(t, repo.store[orderID].DeletedAt)
-		require.Equal(t, model.Deleted, repo.store[orderID].Status)
-		require.Len(t, eventDispatcher.events, 2)
-		require.Equal(t, model.OrderCreated{}.Type(), eventDispatcher.events[0].Type())
-		require.Equal(t, model.OrderDeleted{}.Type(), eventDispatcher.events[1].Type())
-	})
-	eventDispatcher.Reset()
-
-	t.Run("Delete non existed order", func(t *testing.T) {
-		newID, err := repo.NextID()
-		require.NoError(t, err)
-
-		err = orderService.DeleteOrder(newID)
-		require.ErrorIs(t, err, model.ErrOrderNotFound)
-
-		require.Len(t, eventDispatcher.events, 0)
-	})
-	eventDispatcher.Reset()
-
-	t.Run("Set order status", func(t *testing.T) {
-		orderID, err := orderService.CreateOrder(customerID)
-		require.NoError(t, err)
-
-		err = orderService.SetStatus(orderID, model.Open)
-		require.NoError(t, err)
-		require.Equal(t, model.Open, repo.store[orderID].Status)
-
-		err = orderService.SetStatus(orderID, model.Pending)
-		require.NoError(t, err)
-		require.Equal(t, model.Pending, repo.store[orderID].Status)
-
-		err = orderService.SetStatus(orderID, model.Paid)
-		require.NoError(t, err)
-		require.Equal(t, model.Paid, repo.store[orderID].Status)
-
-		err = orderService.SetStatus(orderID, model.Cancelled)
-		require.NoError(t, err)
-		require.Equal(t, model.Cancelled, repo.store[orderID].Status)
-
-		err = orderService.SetStatus(orderID, model.Deleted)
-		require.NoError(t, err)
-		require.Equal(t, model.Deleted, repo.store[orderID].Status)
-
-		require.Len(t, eventDispatcher.events, 6)
-		require.Equal(t, model.OrderCreated{}.Type(), eventDispatcher.events[0].Type())
-		require.Equal(t, model.OrderStatusChanged{}.Type(), eventDispatcher.events[1].Type())
-		require.Equal(t, model.OrderStatusChanged{}.Type(), eventDispatcher.events[2].Type())
-		require.Equal(t, model.OrderStatusChanged{}.Type(), eventDispatcher.events[3].Type())
-		require.Equal(t, model.OrderStatusChanged{}.Type(), eventDispatcher.events[4].Type())
-		require.Equal(t, model.OrderStatusChanged{}.Type(), eventDispatcher.events[5].Type())
-	})
-	eventDispatcher.Reset()
-
-	t.Run("Add order item", func(t *testing.T) {
-		orderID, err := orderService.CreateOrder(customerID)
-		require.NoError(t, err)
-
-		productID := uuid.Must(uuid.NewV7())
-		itemID, err := orderService.AddItem(orderID, productID, 1.64)
-		require.NoError(t, err)
-
-		item := findItemByID(repo.store[orderID].Items, itemID)
-		require.NotNil(t, item)
-		require.Equal(t, productID, item.ProductID)
-		require.Equal(t, 1.64, item.Price)
-
-		require.Len(t, eventDispatcher.events, 2)
-		require.Equal(t, model.OrderCreated{}.Type(), eventDispatcher.events[0].Type())
-		require.Equal(t, model.OrderItemChanged{}.Type(), eventDispatcher.events[1].Type())
-	})
-	eventDispatcher.Reset()
-
-	t.Run("Add item to order with invalid status", func(t *testing.T) {
-		orderID, err := orderService.CreateOrder(customerID)
-		require.NoError(t, err)
-
-		err = orderService.SetStatus(orderID, model.Pending)
-		require.NoError(t, err)
-
-		productID := uuid.Must(uuid.NewV7())
-		itemID, err := orderService.AddItem(orderID, productID, 1.64)
-		require.ErrorIs(t, err, service.ErrInvalidOrderStatus)
-
-		item := findItemByID(repo.store[orderID].Items, itemID)
-		require.Nil(t, item)
-
-		require.Len(t, eventDispatcher.events, 2)
-		require.Equal(t, model.OrderCreated{}.Type(), eventDispatcher.events[0].Type())
-		require.Equal(t, model.OrderStatusChanged{}.Type(), eventDispatcher.events[1].Type())
-	})
-	eventDispatcher.Reset()
-
-	t.Run("Add item to non existed order", func(t *testing.T) {
-		orderID := uuid.Must(uuid.NewV7())
-		productID := uuid.Must(uuid.NewV7())
-
-		itemID, err := orderService.AddItem(orderID, productID, 1.64)
-		require.Equal(t, uuid.Nil, itemID)
-		require.ErrorIs(t, err, model.ErrOrderNotFound)
-
-		require.Len(t, eventDispatcher.events, 0)
-	})
-	eventDispatcher.Reset()
-
-	t.Run("Delete order item", func(t *testing.T) {
-		orderID, err := orderService.CreateOrder(customerID)
-		require.NoError(t, err)
-
-		productID := uuid.Must(uuid.NewV7())
-		itemID, err := orderService.AddItem(orderID, productID, 1.64)
-		require.NoError(t, err)
-
-		err = orderService.DeleteItem(orderID, itemID)
-		require.NoError(t, err)
-
-		require.Len(t, repo.store[orderID].Items, 0)
-
-		require.Len(t, eventDispatcher.events, 3)
-		require.Equal(t, model.OrderCreated{}.Type(), eventDispatcher.events[0].Type())
-		require.Equal(t, model.OrderItemChanged{}.Type(), eventDispatcher.events[1].Type())
-		require.Equal(t, model.OrderItemChanged{}.Type(), eventDispatcher.events[2].Type())
-	})
-	eventDispatcher.Reset()
-
-	t.Run("Delete non exited order item", func(t *testing.T) {
-		orderID, err := orderService.CreateOrder(customerID)
-		require.NoError(t, err)
-
-		itemID := uuid.Must(uuid.NewV7())
-		err = orderService.DeleteItem(orderID, itemID)
-		require.NoError(t, err)
-
-		require.Len(t, repo.store[orderID].Items, 0)
-
-		require.Len(t, eventDispatcher.events, 1)
-		require.Equal(t, model.OrderCreated{}.Type(), eventDispatcher.events[0].Type())
-	})
-	eventDispatcher.Reset()
+type MockOrderRepository struct {
+	mock.Mock
 }
 
-func findItemByID(items []model.Item, id uuid.UUID) *model.Item {
-	for _, item := range items {
-		if item.ID == id {
-			return &item
+func (m *MockOrderRepository) NextID() (uuid.UUID, error) {
+	args := m.Called()
+	return args.Get(0).(uuid.UUID), args.Error(1)
+}
+
+func (m *MockOrderRepository) Store(order model.Order) error {
+	args := m.Called(order)
+	return args.Error(0)
+}
+
+func (m *MockOrderRepository) Find(orderID uuid.UUID) (*model.Order, error) {
+	args := m.Called(orderID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Order), args.Error(1)
+}
+
+type MockEventDispatcher struct {
+	mock.Mock
+}
+
+func (m *MockEventDispatcher) Dispatch(event domain.Event) error {
+	args := m.Called(event)
+	return args.Error(0)
+}
+
+func TestOrderService_CreateOrder(t *testing.T) {
+	repo := new(MockOrderRepository)
+	dispatcher := new(MockEventDispatcher)
+	service := service.NewOrderService(repo, dispatcher)
+
+	userID := uuid.New()
+	productID := uuid.New()
+	orderID := uuid.New()
+
+	items := []model.OrderItem{
+		{ProductID: productID, Quantity: 2, Price: 100},
+	}
+
+	t.Run("success", func(t *testing.T) {
+		repo.On("NextID").Return(orderID, nil).Once()
+		repo.On("Store", mock.MatchedBy(func(o model.Order) bool {
+			return o.OrderID == orderID && o.UserID == userID && o.TotalPrice == 200
+		})).Return(nil).Once()
+		dispatcher.On("Dispatch", mock.MatchedBy(func(e *model.OrderCreated) bool {
+			return e.OrderID == orderID && e.TotalPrice == 200
+		})).Return(nil).Once()
+
+		id, err := service.CreateOrder(userID, items)
+		assert.NoError(t, err)
+		assert.Equal(t, orderID, id)
+		repo.AssertExpectations(t)
+		dispatcher.AssertExpectations(t)
+	})
+
+	t.Run("empty order", func(t *testing.T) {
+		_, err := service.CreateOrder(userID, []model.OrderItem{})
+		assert.ErrorIs(t, err, model.ErrEmptyOrder)
+	})
+}
+
+func TestOrderService_MarkAsPaid(t *testing.T) {
+	repo := new(MockOrderRepository)
+	dispatcher := new(MockEventDispatcher)
+	service := service.NewOrderService(repo, dispatcher)
+
+	orderID := uuid.New()
+
+	t.Run("success", func(t *testing.T) {
+		existingOrder := &model.Order{
+			OrderID: orderID,
+			Status:  model.StatusCreated,
 		}
-	}
-	return nil
-}
 
-var _ model.OrderRepository = &mockOrderRepository{}
+		repo.On("Find", orderID).Return(existingOrder, nil).Once()
+		repo.On("Store", mock.MatchedBy(func(o model.Order) bool {
+			return o.OrderID == orderID && o.Status == model.StatusPaid
+		})).Return(nil).Once()
+		dispatcher.On("Dispatch", mock.MatchedBy(func(e *model.OrderPaid) bool {
+			return e.OrderID == orderID
+		})).Return(nil).Once()
 
-type mockOrderRepository struct {
-	store map[uuid.UUID]*model.Order
-}
+		err := service.MarkAsPaid(orderID)
+		assert.NoError(t, err)
+		repo.AssertExpectations(t)
+		dispatcher.AssertExpectations(t)
+	})
 
-func (m *mockOrderRepository) NextID() (uuid.UUID, error) {
-	return uuid.NewV7()
-}
-
-func (m *mockOrderRepository) Store(order *model.Order) error {
-	m.store[order.ID] = order
-	return nil
-}
-
-func (m *mockOrderRepository) Find(spec model.FindSpec) (*model.Order, error) {
-	order, ok := m.store[*spec.OrderID]
-	if !ok {
-		return nil, model.ErrOrderNotFound
-	}
-	if order.DeletedAt != nil {
-		return nil, model.ErrOrderNotFound
-	}
-	return order, nil
-}
-
-func (m *mockOrderRepository) List() ([]model.Order, error) {
-	var res []model.Order
-	for _, order := range m.store {
-		if order != nil && order.DeletedAt == nil {
-			res = append(res, *order)
+	t.Run("already paid", func(t *testing.T) {
+		existingOrder := &model.Order{
+			OrderID: orderID,
+			Status:  model.StatusPaid,
 		}
-	}
-	return res, nil
+		repo.On("Find", orderID).Return(existingOrder, nil).Once()
+
+		err := service.MarkAsPaid(orderID)
+		assert.NoError(t, err)
+		repo.AssertNotCalled(t, "Store")
+	})
 }
 
-func (m *mockOrderRepository) Delete(id uuid.UUID) error {
-	order, ok := m.store[id]
-	if !ok {
-		return model.ErrOrderNotFound
-	}
-	now := time.Now()
-	order.DeletedAt = &now
-	return nil
-}
+func TestOrderService_CancelOrder(t *testing.T) {
+	repo := new(MockOrderRepository)
+	dispatcher := new(MockEventDispatcher)
+	service := service.NewOrderService(repo, dispatcher)
 
-type mockEventDispatcher struct {
-	events []commonevent.Event
-}
+	orderID := uuid.New()
 
-func (m *mockEventDispatcher) Reset() {
-	m.events = make([]commonevent.Event, 0)
-}
+	t.Run("success", func(t *testing.T) {
+		existingOrder := &model.Order{
+			OrderID: orderID,
+			Status:  model.StatusCreated,
+		}
 
-func (m *mockEventDispatcher) ListEvents() []commonevent.Event {
-	return m.events
-}
+		repo.On("Find", orderID).Return(existingOrder, nil).Once()
+		repo.On("Store", mock.MatchedBy(func(o model.Order) bool {
+			return o.OrderID == orderID && o.Status == model.StatusCancelled
+		})).Return(nil).Once()
+		dispatcher.On("Dispatch", mock.MatchedBy(func(e *model.OrderCancelled) bool {
+			return e.OrderID == orderID && e.Reason == "test"
+		})).Return(nil).Once()
 
-func (m *mockEventDispatcher) Dispatch(evt commonevent.Event) error {
-	m.events = append(m.events, evt)
-	return nil
+		err := service.CancelOrder(orderID, "test")
+		assert.NoError(t, err)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("cannot cancel paid order", func(t *testing.T) {
+		existingOrder := &model.Order{
+			OrderID: orderID,
+			Status:  model.StatusPaid,
+		}
+		repo.On("Find", orderID).Return(existingOrder, nil).Once()
+
+		err := service.CancelOrder(orderID, "reason")
+		assert.NoError(t, err)
+		repo.AssertNotCalled(t, "Store")
+	})
 }

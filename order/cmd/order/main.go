@@ -25,7 +25,6 @@ func main() {
 		Commands: cli.Commands{
 			migrate(logger),
 			messageHandler(logger),
-			workflowWorker(logger),
 			service(logger),
 		},
 	}

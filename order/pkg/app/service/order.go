@@ -2,40 +2,32 @@ package service
 
 import (
 	"context"
-	"errors"
-	"time"
+	"fmt"
 
 	"gitea.xscloud.ru/xscloud/golib/pkg/application/outbox"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 
+	appmodel "order/pkg/app/model"
+	"order/pkg/common/domain"
 	"order/pkg/domain/model"
 	"order/pkg/domain/service"
 )
 
-type ProductProvider interface {
-	ActualPrice(ctx context.Context, productID uuid.UUID) (float64, error)
-}
-
 type OrderService interface {
-	AddProductToOrder(ctx context.Context, customerID uuid.UUID, itemID uuid.UUID) (uuid.UUID, error)
-	RemoveProductFromOrder(ctx context.Context, customerID uuid.UUID, itemID uuid.UUID) error
-
-	SaveOrder(ctx context.Context, orderID uuid.UUID) error
-	CancelOrder(ctx context.Context, orderID uuid.UUID) error
-	DeleteOrder(ctx context.Context, orderID uuid.UUID) error
+	CreateOrder(ctx context.Context, order appmodel.CreateOrder) (uuid.UUID, error)
+	HandlePaymentResult(ctx context.Context, orderID uuid.UUID, success bool) error
 }
 
 func NewOrderService(
 	uow UnitOfWork,
 	luow LockableUnitOfWork,
 	eventDispatcher outbox.EventDispatcher[outbox.Event],
-	productProvider *ProductProvider,
 ) OrderService {
 	return &orderService{
 		uow:             uow,
 		luow:            luow,
 		eventDispatcher: eventDispatcher,
-		productProvider: productProvider,
 	}
 }
 
@@ -43,133 +35,83 @@ type orderService struct {
 	uow             UnitOfWork
 	luow            LockableUnitOfWork
 	eventDispatcher outbox.EventDispatcher[outbox.Event]
-	productProvider *ProductProvider
 }
 
-func (o orderService) AddProductToOrder(ctx context.Context, customerID, productID uuid.UUID) (uuid.UUID, error) {
+func (s *orderService) CreateOrder(ctx context.Context, order appmodel.CreateOrder) (uuid.UUID, error) {
 	var orderID uuid.UUID
-	err := o.luow.Execute(ctx, []string{"customer_" + customerID.String()}, func(provider RepositoryProvider) error {
-		status := model.Open
-		order, err := provider.OrderRepository(ctx).Find(model.FindSpec{
-			CustomerID: &customerID,
-			Status:     &status,
-		})
-		if err == nil {
-			orderID = order.ID
-			return nil
-		}
-		if err != nil && !errors.Is(err, model.ErrOrderNotFound) {
-			return err
+
+	err := s.uow.Execute(ctx, func(provider RepositoryProvider) error {
+		userRepo := provider.LocalUserRepository(ctx)
+		productRepo := provider.LocalProductRepository(ctx)
+
+		if _, err := userRepo.Find(order.UserID); err != nil {
+			return errors.Wrap(model.ErrUserNotFound, err.Error())
 		}
 
-		domainService := o.domainService(ctx, provider.OrderRepository(ctx))
-		orderID, err = domainService.CreateOrder(customerID)
-		return err
-	})
-	if err != nil {
-		return uuid.Nil, err
-	}
+		productIDs := make([]uuid.UUID, len(order.Items))
+		for i, item := range order.Items {
+			productIDs[i] = item.ProductID
+		}
 
-	price := 0.0
-	//price, err := o.productProvider.ActualPrice(ctx, productID)
-	//if err != nil {
-	//	return uuid.Nil, err
-	//}
-
-	var itemID uuid.UUID
-	return itemID, o.luow.Execute(ctx, []string{"order_" + orderID.String()}, func(provider RepositoryProvider) error {
-		domainService := o.domainService(ctx, provider.OrderRepository(ctx))
-		itemID, err = domainService.AddItem(orderID, productID, price)
-		return err
-	})
-}
-
-func (o orderService) RemoveProductFromOrder(ctx context.Context, customerID, itemID uuid.UUID) error {
-	var orderID uuid.UUID
-	err := o.luow.Execute(ctx, []string{"customer_" + customerID.String()}, func(provider RepositoryProvider) error {
-		order, err := provider.OrderRepository(ctx).Find(model.FindSpec{
-			CustomerID: &customerID,
-		})
+		products, err := productRepo.FindMany(productIDs)
 		if err != nil {
 			return err
 		}
-
-		if order.CustomerID != customerID {
-			return model.ErrOrderAccessDenied
+		if len(products) != len(order.Items) {
+			return model.ErrProductNotFound
 		}
 
-		orderID = order.ID
+		productMap := make(map[uuid.UUID]model.LocalProduct, len(products))
+		for _, p := range products {
+			productMap[p.ProductID] = p
+		}
+
+		domainItems := make([]model.OrderItem, len(order.Items))
+		for i, item := range order.Items {
+			product := productMap[item.ProductID]
+			domainItems[i] = model.OrderItem{
+				ProductID: item.ProductID,
+				Quantity:  item.Quantity,
+				Price:     product.Price,
+			}
+		}
+
+		domainService := s.domainService(ctx, provider)
+		id, err := domainService.CreateOrder(order.UserID, domainItems)
+		if err != nil {
+			return err
+		}
+		orderID = id
 		return nil
 	})
-	if err != nil {
-		return err
+
+	return orderID, err
+}
+
+func (s *orderService) HandlePaymentResult(ctx context.Context, orderID uuid.UUID, success bool) error {
+	lockName := orderLock(orderID)
+	return s.luow.Execute(ctx, []string{lockName}, func(provider RepositoryProvider) error {
+		domainService := s.domainService(ctx, provider)
+		if success {
+			return domainService.MarkAsPaid(orderID)
+		}
+		return domainService.CancelOrder(orderID, "Payment failed")
+	})
+}
+
+func (s *orderService) domainService(ctx context.Context, provider RepositoryProvider) service.OrderService {
+	return service.NewOrderService(provider.OrderRepository(ctx), s.domainEventDispatcher(ctx))
+}
+
+func (s *orderService) domainEventDispatcher(ctx context.Context) domain.EventDispatcher {
+	return &domainEventDispatcher{
+		ctx:             ctx,
+		eventDispatcher: s.eventDispatcher,
 	}
-
-	return o.luow.Execute(ctx, []string{"order_" + orderID.String()}, func(provider RepositoryProvider) error {
-		domainService := o.domainService(ctx, provider.OrderRepository(ctx))
-		return domainService.DeleteItem(orderID, itemID)
-	})
 }
 
-func (o orderService) SaveOrder(ctx context.Context, orderID uuid.UUID) error {
-	return o.luow.Execute(ctx, []string{"order_" + orderID.String()}, func(provider RepositoryProvider) error {
-		order, err := provider.OrderRepository(ctx).Find(model.FindSpec{
-			OrderID: &orderID,
-		})
-		if err != nil {
-			return err
-		}
+const baseOrderLock = "order_"
 
-		if order.Status != model.Open {
-			return model.ErrInvalidOrderStatus
-		}
-
-		order.Status = model.Pending
-		order.UpdatedAt = time.Now()
-
-		return provider.OrderRepository(ctx).Store(order)
-	})
-}
-
-func (o orderService) CancelOrder(ctx context.Context, orderID uuid.UUID) error {
-	return o.luow.Execute(ctx, []string{"order_" + orderID.String()}, func(provider RepositoryProvider) error {
-		order, err := provider.OrderRepository(ctx).Find(model.FindSpec{
-			OrderID: &orderID,
-		})
-		if err != nil {
-			return err
-		}
-
-		if order.Status != model.Open && order.Status != model.Pending {
-			return model.ErrInvalidOrderStatus
-		}
-
-		order.Status = model.Cancelled
-		order.UpdatedAt = time.Now()
-
-		return provider.OrderRepository(ctx).Store(order)
-	})
-}
-
-func (o orderService) DeleteOrder(ctx context.Context, orderID uuid.UUID) error {
-	return o.luow.Execute(ctx, []string{"order_" + orderID.String()}, func(provider RepositoryProvider) error {
-		_, err := provider.OrderRepository(ctx).Find(model.FindSpec{
-			OrderID: &orderID,
-		})
-		if err != nil {
-			return err
-		}
-
-		return provider.OrderRepository(ctx).Delete(orderID)
-	})
-}
-
-func (o orderService) domainService(ctx context.Context, repo model.OrderRepository) service.Order {
-	return service.NewOrderService(
-		repo,
-		&domainEventDispatcher{
-			ctx:             ctx,
-			eventDispatcher: o.eventDispatcher,
-		},
-	)
+func orderLock(id uuid.UUID) string {
+	return fmt.Sprintf("%s%s", baseOrderLock, id.String())
 }

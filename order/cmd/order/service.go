@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"time"
 
 	"gitea.xscloud.ru/xscloud/golib/pkg/application/logging"
 	libio "gitea.xscloud.ru/xscloud/golib/pkg/common/io"
@@ -14,8 +15,9 @@ import (
 	"github.com/urfave/cli/v2"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 
-	internalapi "order/api/server/orderinternalapi"
+	"order/api/server/orderinternal"
 	appservice "order/pkg/app/service"
 	"order/pkg/infrastructure/integrationevent"
 	inframysql "order/pkg/infrastructure/mysql"
@@ -57,9 +59,9 @@ func service(logger logging.Logger) *cli.Command {
 			luow := inframysql.NewLockableUnitOfWork(libLUow)
 			eventDispatcher := outbox.NewEventDispatcher(appID, integrationevent.TransportName, integrationevent.NewEventSerializer(), libUoW)
 
-			userPublicAPIServer := transport.NewOrderInternalAPI(
+			orderInternalAPI := transport.NewOrderInternalAPI(
 				query.NewOrderQueryService(databaseConnector.TransactionalClient()),
-				appservice.NewOrderService(uow, luow, eventDispatcher, nil),
+				appservice.NewOrderService(uow, luow, eventDispatcher),
 			)
 
 			errGroup := errgroup.Group{}
@@ -71,7 +73,8 @@ func service(logger logging.Logger) *cli.Command {
 				grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(
 					middlewares.NewGRPCLoggingMiddleware(logger),
 				))
-				internalapi.RegisterOrderInternalAPIServer(grpcServer, userPublicAPIServer)
+				orderinternal.RegisterOrderInternalServiceServer(grpcServer, orderInternalAPI)
+				reflection.Register(grpcServer)
 				graceCallback(c.Context, logger, cnf.Service.GracePeriod, func(_ context.Context) error {
 					grpcServer.GracefulStop()
 					return nil
@@ -81,10 +84,11 @@ func service(logger logging.Logger) *cli.Command {
 			errGroup.Go(func() error {
 				router := mux.NewRouter()
 				registerHealthcheck(router)
-				// nolint:gosec
+				registerMetrics(router)
 				server := http.Server{
-					Addr:    cnf.Service.HTTPAddress,
-					Handler: router,
+					Addr:              cnf.Service.HTTPAddress,
+					Handler:           router,
+					ReadHeaderTimeout: 5 * time.Second,
 				}
 				graceCallback(c.Context, logger, cnf.Service.GracePeriod, server.Shutdown)
 				return server.ListenAndServe()

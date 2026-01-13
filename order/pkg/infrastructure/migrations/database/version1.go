@@ -23,22 +23,42 @@ func (v version1) Version() int64 {
 }
 
 func (v version1) Description() string {
-	return "Create 'order' table"
+	return "Create 'order' and 'order_item' tables"
 }
 
 func (v version1) Up(ctx context.Context) error {
 	_, err := v.client.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS `+"`order`"+`
+		CREATE TABLE `+"`order`"+`
 		(
-			id          BINARY(16) NOT NULL PRIMARY KEY,
-			customer_id BINARY(16) NOT NULL,
-			status      TINYINT    NOT NULL DEFAULT 0 COMMENT '0: Open, 1: Pending, 2: Paid, 3: Cancelled, 4: Deleted',
-			created_at  DATETIME   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at  DATETIME   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-			deleted_at  DATETIME   NULL
-		) ENGINE = InnoDB
-		  DEFAULT CHARSET = utf8mb4
-		  COLLATE = utf8mb4_unicode_ci
+			order_id      VARCHAR(64)  NOT NULL,
+			user_id       VARCHAR(64)  NOT NULL,
+			total_price   BIGINT       NOT NULL,
+			status        INT          NOT NULL,
+			created_at    DATETIME     NOT NULL,
+			updated_at    DATETIME     NOT NULL,
+			PRIMARY KEY (order_id),
+			INDEX order_user_id_idx (user_id)
+		)
+			ENGINE = InnoDB
+			CHARACTER SET = utf8mb4
+			COLLATE utf8mb4_unicode_ci;
+	`)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	_, err = v.client.ExecContext(ctx, `
+		CREATE TABLE order_item
+		(
+			order_id      VARCHAR(64)  NOT NULL,
+			product_id    VARCHAR(64)  NOT NULL,
+			quantity      INT          NOT NULL,
+			price         BIGINT       NOT NULL,
+			PRIMARY KEY (order_id, product_id)
+		)
+			ENGINE = InnoDB
+			CHARACTER SET = utf8mb4
+			COLLATE utf8mb4_unicode_ci;
 	`)
 	return errors.WithStack(err)
 }

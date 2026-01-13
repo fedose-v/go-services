@@ -9,9 +9,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 
-	"order/pkg/app/data"
+	appmodel "order/pkg/app/model"
 	"order/pkg/app/query"
 	"order/pkg/domain/model"
+	"order/pkg/infrastructure/metrics"
 )
 
 func NewOrderQueryService(client mysql.ClientContext) query.OrderQueryService {
@@ -24,22 +25,25 @@ type orderQueryService struct {
 	client mysql.ClientContext
 }
 
-func (o *orderQueryService) FindUser(ctx context.Context, orderID uuid.UUID) (*data.Order, error) {
-	orderRow := struct {
-		ID         uuid.UUID           `db:"order_id"`
-		CustomerID uuid.UUID           `db:"customer_id"`
-		Status     int                 `db:"status"`
-		CreatedAt  time.Time           `db:"created_at"`
-		UpdatedAt  time.Time           `db:"updated_at"`
-		DeletedAt  sql.Null[time.Time] `db:"deleted_at"`
+func (s *orderQueryService) FindOrder(ctx context.Context, orderID uuid.UUID) (_ *appmodel.Order, err error) {
+	start := time.Now()
+	defer func() {
+		status := metrics.StatusSuccess
+		if err != nil && !errors.Is(err, sql.ErrNoRows) && !errors.Is(err, model.ErrOrderNotFound) {
+			status = metrics.StatusError
+		}
+		metrics.DatabaseDuration.WithLabelValues("find_query", "order", status).Observe(time.Since(start).Seconds())
+	}()
+
+	orderData := struct {
+		OrderID    uuid.UUID `db:"order_id"`
+		UserID     uuid.UUID `db:"user_id"`
+		TotalPrice int64     `db:"total_price"`
+		Status     int       `db:"status"`
+		CreatedAt  time.Time `db:"created_at"`
 	}{}
 
-	err := o.client.GetContext(
-		ctx,
-		&orderRow,
-		`SELECT order_id, customer_id, status, created_at, updated_at, deleted_at FROM order WHERE order_id = ?`,
-		orderID,
-	)
+	err = s.client.GetContext(ctx, &orderData, "SELECT order_id, user_id, total_price, status, created_at FROM `order` WHERE order_id = ?", orderID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.WithStack(model.ErrOrderNotFound)
@@ -47,56 +51,29 @@ func (o *orderQueryService) FindUser(ctx context.Context, orderID uuid.UUID) (*d
 		return nil, errors.WithStack(err)
 	}
 
-	items, err := o.loadOrderItems(ctx, orderRow.ID)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	return &data.Order{
-		ID:         orderRow.ID,
-		CustomerID: orderRow.CustomerID,
-		Status:     data.OrderStatus(orderRow.Status),
-		Items:      items,
-		CreatedAt:  orderRow.CreatedAt,
-		UpdatedAt:  orderRow.UpdatedAt,
-		DeletedAt:  fromSQLNull(orderRow.DeletedAt),
-	}, nil
-}
-
-func (o *orderQueryService) loadOrderItems(ctx context.Context, orderID uuid.UUID) ([]data.OrderItem, error) {
-	var itemRows []struct {
-		OrderID   uuid.UUID `db:"order_id"`
+	var itemsData []struct {
 		ProductID uuid.UUID `db:"product_id"`
-		Count     int       `db:"count"`
-		Price     float64   `db:"price"`
+		Quantity  int       `db:"quantity"`
 	}
-
-	err := o.client.SelectContext(
-		ctx,
-		&itemRows,
-		`SELECT order_id, product_id, count, price FROM order_item WHERE order_id = ?`,
-		orderID,
-	)
+	err = s.client.SelectContext(ctx, &itemsData, `SELECT product_id, quantity FROM order_item WHERE order_id = ?`, orderID)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	items := make([]data.OrderItem, len(itemRows))
-	for i, row := range itemRows {
-		items[i] = data.OrderItem{
-			OrderID:   row.OrderID,
-			ProductID: row.ProductID,
-			Count:     row.Count,
-			Price:     row.Price,
+	items := make([]appmodel.OrderItem, len(itemsData))
+	for i, itemData := range itemsData {
+		items[i] = appmodel.OrderItem{
+			ProductID: itemData.ProductID,
+			Quantity:  itemData.Quantity,
 		}
 	}
 
-	return items, nil
-}
-
-func fromSQLNull[T any](v sql.Null[T]) *T {
-	if v.Valid {
-		return &v.V
-	}
-	return nil
+	return &appmodel.Order{
+		OrderID:    orderData.OrderID,
+		UserID:     orderData.UserID,
+		Items:      items,
+		TotalPrice: orderData.TotalPrice,
+		Status:     orderData.Status,
+		CreatedAt:  orderData.CreatedAt.Unix(),
+	}, nil
 }

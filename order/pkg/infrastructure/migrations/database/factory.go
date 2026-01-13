@@ -45,4 +45,5 @@ func NewDatabaseMigrator(
 var builderFunctions = []MigrationBuilderFunc{
 	NewVersion1,
 	NewVersion2,
+	NewVersion3,
 }

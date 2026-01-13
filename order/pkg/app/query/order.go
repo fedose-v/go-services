@@ -5,9 +5,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"order/pkg/app/data"
+	appmodel "order/pkg/app/model"
 )
 
 type OrderQueryService interface {
-	FindUser(ctx context.Context, orderID uuid.UUID) (*data.Order, error)
+	FindOrder(ctx context.Context, orderID uuid.UUID) (*appmodel.Order, error)
 }

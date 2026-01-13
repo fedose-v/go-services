@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"gitea.xscloud.ru/xscloud/golib/pkg/application/logging"
 	libio "gitea.xscloud.ru/xscloud/golib/pkg/common/io"
@@ -13,15 +14,14 @@ import (
 	"github.com/urfave/cli/v2"
 	"golang.org/x/sync/errgroup"
 
+	"order/pkg/infrastructure/consumer"
 	"order/pkg/infrastructure/integrationevent"
-	"order/pkg/infrastructure/temporal"
 )
 
 type messageHandlerConfig struct {
 	Service  Service  `envconfig:"service"`
 	Database Database `envconfig:"database" required:"true"`
 	AMQP     AMQP     `envconfig:"amqp" required:"true"`
-	Temporal Temporal `envconfig:"temporal" required:"true"`
 }
 
 func messageHandler(logger logging.Logger) *cli.Command {
@@ -46,26 +46,18 @@ func messageHandler(logger logging.Logger) *cli.Command {
 			closer.AddCloser(databaseConnector)
 			databaseConnectionPool := mysql.NewConnectionPool(databaseConnector.TransactionalClient())
 
-			temporalClient, err := temporal.NewClient(logger, cnf.Temporal.Host)
-			if err != nil {
-				return err
-			}
-			closer.AddCloser(libio.CloserFunc(func() error {
-				temporalClient.Close()
-				return nil
-			}))
-			workflowService := temporal.NewWorkflowService(temporalClient)
-
 			amqpConnection := newAMQPConnection(cnf.AMQP, logger)
+
 			queueConfig := &amqp.QueueConfig{
-				Name:    integrationevent.QueueName,
+				Name:    "order_events",
 				Durable: true,
 			}
 			bindConfig := &amqp.BindConfig{
-				QueueName:    integrationevent.QueueName,
+				QueueName:    "order_events",
 				ExchangeName: integrationevent.ExchangeName,
-				RoutingKeys:  []string{integrationevent.RoutingKeyPrefix + "#"},
+				RoutingKeys:  []string{"user.*", "product.*"},
 			}
+
 			amqpEventProducer := amqpConnection.Producer(
 				&amqp.ExchangeConfig{
 					Name:    integrationevent.ExchangeName,
@@ -75,16 +67,20 @@ func messageHandler(logger logging.Logger) *cli.Command {
 				queueConfig,
 				bindConfig,
 			)
-			amqpTransport := integrationevent.NewAMQPTransport(logger, workflowService)
+
+			eventConsumer, err := consumer.NewEventConsumer(c.Context, amqpConnection, databaseConnectionPool, logger)
+			if err != nil {
+				return err
+			}
+
 			amqpConnection.Consumer(
 				c.Context,
-				amqpTransport.Handler(),
+				eventConsumer.Handler(),
 				queueConfig,
 				bindConfig,
-				&amqp.QoSConfig{
-					PrefetchCount: 100,
-				},
+				nil,
 			)
+
 			err = amqpConnection.Start()
 			if err != nil {
 				return err
@@ -95,12 +91,13 @@ func messageHandler(logger logging.Logger) *cli.Command {
 
 			outboxEventHandler := outbox.NewEventHandler(outbox.EventHandlerConfig{
 				TransportName:  integrationevent.TransportName,
-				Transport:      integrationevent.NewOutboxTransport(logger, amqpEventProducer),
+				Transport:      integrationevent.NewTransport(logger, amqpEventProducer),
 				ConnectionPool: databaseConnectionPool,
 				Logger:         logger,
 			})
 
 			errGroup := errgroup.Group{}
+
 			errGroup.Go(func() error {
 				return outboxEventHandler.Start(c.Context)
 			})
@@ -108,10 +105,11 @@ func messageHandler(logger logging.Logger) *cli.Command {
 			errGroup.Go(func() error {
 				router := mux.NewRouter()
 				registerHealthcheck(router)
-				// nolint:gosec
+				registerMetrics(router)
 				server := http.Server{
-					Addr:    cnf.Service.HTTPAddress,
-					Handler: router,
+					Addr:              cnf.Service.HTTPAddress,
+					Handler:           router,
+					ReadHeaderTimeout: 5 * time.Second,
 				}
 				graceCallback(c.Context, logger, cnf.Service.GracePeriod, server.Shutdown)
 				return server.ListenAndServe()

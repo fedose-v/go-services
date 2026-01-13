@@ -8,37 +8,31 @@ import (
 
 type OrderCreated struct {
 	OrderID    uuid.UUID
-	CustomerID uuid.UUID
+	UserID     uuid.UUID
+	TotalPrice int64
+	Items      []OrderItem
+	CreatedAt  time.Time
 }
 
 func (e OrderCreated) Type() string {
-	return "OrderCreated"
+	return "order_created"
 }
 
-type OrderItemChanged struct {
-	OrderID      uuid.UUID
-	AddedItems   []uuid.UUID
-	RemovedItems []uuid.UUID
+type OrderPaid struct {
+	OrderID uuid.UUID
+	PaidAt  time.Time
 }
 
-func (e OrderItemChanged) Type() string {
-	return "OrderItemChanged"
+func (e OrderPaid) Type() string {
+	return "order_paid"
 }
 
-type OrderDeleted struct {
-	OrderID   uuid.UUID
-	DeletedAt time.Time
-}
-
-func (e OrderDeleted) Type() string {
-	return "OrderDeleted"
-}
-
-type OrderStatusChanged struct {
+type OrderCancelled struct {
 	OrderID     uuid.UUID
-	OrderStatus OrderStatus
+	Reason      string
+	CancelledAt time.Time
 }
 
-func (e OrderStatusChanged) Type() string {
-	return "OrderStatusChanged"
+func (e OrderCancelled) Type() string {
+	return "order_cancelled"
 }

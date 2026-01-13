@@ -10,7 +10,8 @@ services:
     command:
       - service
     ports:
-      - "8081:8081" # GRPC API port
+      - "8087:8081"
+      - "8088:8082"
     environment:
       ORDER_DB_HOST: order-db
       ORDER_DB_PORT: 3311
