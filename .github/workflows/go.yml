@@ -19,12 +19,12 @@ jobs:
       with:
         go-version: '1.25'
 
-    - name: Tidy dependencies for order
+    - name: Tidy dependencies for payment
       run: |
         cd user
         go mod tidy
 
-    - name: Run tests for order
+    - name: Run tests for payment
       run: |
         cd user
         go test ./pkg/... -v -race -coverprofile=coverage.out
@@ -63,12 +63,12 @@ jobs:
         with:
           go-version: '1.25'
 
-      - name: Tidy dependencies for order
+      - name: Tidy dependencies for payment
         run: |
           cd order
           go mod tidy
 
-      - name: Run tests for order
+      - name: Run tests for payment
         run: |
           cd order
           go test ./pkg/... -v -race -coverprofile=coverage.out

@@ -4,26 +4,26 @@ package Inventory;
 option go_package = "/.;inventorypublicapi";
 
 service InventoryPublicAPI {
-  rpc StoreProduct(StoreInventoryRequest) returns (StoreInventoryResponse);
-  rpc FindProduct(FindInventoryRequest) returns (FindInventoryResponse);
+  rpc StoreProduct(StoreProductRequest) returns (StoreProductResponse);
+  rpc FindProduct(FindProductRequest) returns (FindProductResponse);
 }
 
-message StoreInventoryRequest {
+message StoreProductRequest {
   string productID = 1;
   string name = 2;
   double price = 3;
   int64 quantity = 4;
 }
 
-message StoreInventoryResponse {
+message StoreProductResponse {
   string productID = 1;
 }
 
-message FindInventoryRequest {
+message FindProductRequest {
   string productID = 1;
 }
 
-message FindInventoryResponse {
+message FindProductResponse {
   string productID = 1;
   string name = 2;
   double price = 3;

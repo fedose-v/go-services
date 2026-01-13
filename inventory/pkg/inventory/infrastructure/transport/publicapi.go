@@ -31,7 +31,7 @@ type inventoryInternalAPI struct {
 	inventorypublicapi.UnimplementedInventoryPublicAPIServer
 }
 
-func (u inventoryInternalAPI) StoreInventory(ctx context.Context, request *inventorypublicapi.StoreInventoryRequest) (*inventorypublicapi.StoreInventoryResponse, error) {
+func (u inventoryInternalAPI) StoreInventory(ctx context.Context, request *inventorypublicapi.StoreProductRequest) (*inventorypublicapi.StoreProductResponse, error) {
 	var (
 		productID uuid.UUID
 		err       error
@@ -53,12 +53,12 @@ func (u inventoryInternalAPI) StoreInventory(ctx context.Context, request *inven
 		return nil, err
 	}
 
-	return &inventorypublicapi.StoreInventoryResponse{
+	return &inventorypublicapi.StoreProductResponse{
 		ProductID: productID.String(),
 	}, nil
 }
 
-func (u inventoryInternalAPI) FindInventory(ctx context.Context, request *inventorypublicapi.FindInventoryRequest) (*inventorypublicapi.FindInventoryResponse, error) {
+func (u inventoryInternalAPI) FindInventory(ctx context.Context, request *inventorypublicapi.FindProductRequest) (*inventorypublicapi.FindProductResponse, error) {
 	productID, err := uuid.Parse(request.ProductID)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid uuid %q", request.ProductID)
@@ -70,7 +70,7 @@ func (u inventoryInternalAPI) FindInventory(ctx context.Context, request *invent
 	if product == nil {
 		return nil, status.Errorf(codes.NotFound, "product %q not found", request.ProductID)
 	}
-	return &inventorypublicapi.FindInventoryResponse{
+	return &inventorypublicapi.FindProductResponse{
 		ProductID: productID.String(),
 		Name:      product.Name,
 		Price:     product.Price,

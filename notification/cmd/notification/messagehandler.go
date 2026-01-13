@@ -10,11 +10,10 @@ import (
 	"gitea.xscloud.ru/xscloud/golib/pkg/infrastructure/mysql"
 	"gitea.xscloud.ru/xscloud/golib/pkg/infrastructure/outbox"
 	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/sync/errgroup"
 
-	"inventory/pkg/inventory/infrastructure/integrationevent"
+	"payment/pkg/payment/infrastructure/integrationevent"
 )
 
 type messageHandlerConfig struct {
@@ -47,33 +46,14 @@ func messageHandler(logger logging.Logger) *cli.Command {
 			databaseConnectionPool := mysql.NewConnectionPool(databaseConnector.TransactionalClient())
 
 			amqpConnection := newAMQPConnection(cnf.AMQP, logger)
-			queueConfig := &amqp.QueueConfig{
-				Name:    integrationevent.QueueName,
-				Durable: true,
-			}
-			bindConfig := &amqp.BindConfig{
-				QueueName:    integrationevent.QueueName,
-				ExchangeName: integrationevent.ExchangeName,
-				RoutingKeys:  []string{integrationevent.RoutingKeyPrefix + "#"},
-			}
 			amqpEventProducer := amqpConnection.Producer(
 				&amqp.ExchangeConfig{
 					Name:    integrationevent.ExchangeName,
 					Kind:    integrationevent.ExchangeKind,
 					Durable: true,
 				},
-				queueConfig,
-				bindConfig,
-			)
-			amqpTransport := integrationevent.NewAMQPTransport(logger)
-			amqpConnection.Consumer(
-				c.Context,
-				amqpTransport.Handler(),
-				queueConfig,
-				bindConfig,
-				&amqp.QoSConfig{
-					PrefetchCount: 100,
-				},
+				nil,
+				nil,
 			)
 			err = amqpConnection.Start()
 			if err != nil {
@@ -85,7 +65,7 @@ func messageHandler(logger logging.Logger) *cli.Command {
 
 			outboxEventHandler := outbox.NewEventHandler(outbox.EventHandlerConfig{
 				TransportName:  integrationevent.TransportName,
-				Transport:      integrationevent.NewOutboxTransport(logger, amqpEventProducer),
+				Transport:      integrationevent.NewTransport(logger, amqpEventProducer),
 				ConnectionPool: databaseConnectionPool,
 				Logger:         logger,
 			})
@@ -98,7 +78,6 @@ func messageHandler(logger logging.Logger) *cli.Command {
 			errGroup.Go(func() error {
 				router := mux.NewRouter()
 				registerHealthcheck(router)
-				router.Handle("/metrics", promhttp.Handler())
 				// nolint:gosec
 				server := http.Server{
 					Addr:    cnf.Service.HTTPAddress,

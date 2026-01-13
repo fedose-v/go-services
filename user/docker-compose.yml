@@ -65,7 +65,7 @@ services:
     container_name: user-db
     command: [ "--max_connections=100" ]
     volumes:
-      - "user-db-data:/var/lib/mysql"
+      - "user-db-model:/var/lib/mysql"
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: yes
       MYSQL_DATABASE: user
@@ -85,7 +85,7 @@ services:
     ports:
       - "15672:15672"
     volumes:
-      - "user-rmq-data:/var/lib/rabbitmq/mnesia"
+      - "user-rmq-model:/var/lib/rabbitmq/mnesia"
     healthcheck:
       test: rabbitmq-diagnostics -q ping
       interval: 1s
@@ -110,7 +110,7 @@ services:
     ports:
       - "7234:7234"
     volumes:
-      - ./docker/data/temporal/dynamicconfig:/etc/temporal/config/dynamicconfig
+      - ./docker/model/temporal/dynamicconfig:/etc/temporal/config/dynamicconfig
 
   user-temporal-admin-tools:
     container_name: user-temporal-admin-tools
@@ -143,7 +143,7 @@ services:
       - "9090:9090"
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - user-prometheus-data:/prometheus
+      - user-prometheus-model:/prometheus
     depends_on:
       - user
       - user-workflow-worker
@@ -158,7 +158,7 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
-      - user-grafana-data:/var/lib/grafana
+      - user-grafana-model:/var/lib/grafana
       - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       - user-prometheus
