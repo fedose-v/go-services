@@ -74,7 +74,7 @@ func TestPaymentService(t *testing.T) {
 		err = paymentService.UpdateBalance(customerID, amountToAdd)
 		require.NoError(t, err)
 
-		balance, err := balanceRepo.Find(customerID)
+		balance, _ := balanceRepo.Find(customerID)
 		require.Equal(t, amountToAdd, balance.Amount)
 
 		require.Len(t, eventDispatcher.events, 1)
@@ -190,7 +190,6 @@ func TestPaymentService(t *testing.T) {
 		e := eventDispatcher.events[0].(model.RefundCreated)
 		require.Equal(t, orderID, e.OrderID)
 		require.Equal(t, customerID, e.CustomerID)
-
 	})
 
 	t.Run("Create transaction when customer balance not found", func(t *testing.T) {

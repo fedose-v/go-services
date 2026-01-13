@@ -57,7 +57,7 @@ func service(logger logging.Logger) *cli.Command {
 			luow := inframysql.NewLockableUnitOfWork(libLUow)
 			eventDispatcher := outbox.NewEventDispatcher(appID, integrationevent.TransportName, integrationevent.NewEventSerializer(), libUoW)
 
-			paymentPublicAPIServer := transport.NewPaymentInternalApi(
+			paymentPublicAPIServer := transport.NewPaymentInternalAPI(
 				query.NewAccountBalanceQueryService(databaseConnector.TransactionalClient()),
 				appservice.NewPaymentService(uow, luow, eventDispatcher),
 			)
@@ -71,7 +71,7 @@ func service(logger logging.Logger) *cli.Command {
 				grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(
 					middlewares.NewGRPCLoggingMiddleware(logger),
 				))
-				internalapi.RegisterPayemntInternalAPIServer(grpcServer, paymentPublicAPIServer)
+				internalapi.RegisterPaymentPublicAPIServer(grpcServer, paymentPublicAPIServer)
 				graceCallback(c.Context, logger, cnf.Service.GracePeriod, func(_ context.Context) error {
 					grpcServer.GracefulStop()
 					return nil

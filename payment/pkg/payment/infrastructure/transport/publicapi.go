@@ -13,7 +13,7 @@ import (
 	"payment/pkg/payment/app/service"
 )
 
-func NewPaymentInternalApi(
+func NewPaymentInternalAPI(
 	balanceQueryService query.AccountBalanceQueryService,
 	paymentService service.PaymentService,
 ) paymentpublicapi.PaymentPublicAPIServer {

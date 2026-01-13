@@ -38,7 +38,7 @@ type paymentService struct {
 	dispatcher  domain.EventDispatcher
 }
 
-func (p paymentService) CreateTransaction(orderID uuid.UUID, customerID uuid.UUID, amount float64) (uuid.UUID, error) {
+func (p paymentService) CreateTransaction(orderID, customerID uuid.UUID, amount float64) (uuid.UUID, error) {
 	if amount < 0 {
 		return uuid.Nil, ErrAddingNegativeAmount
 	}
@@ -84,7 +84,7 @@ func (p paymentService) CreateTransaction(orderID uuid.UUID, customerID uuid.UUI
 	})
 }
 
-func (p paymentService) CreateRefund(orderID uuid.UUID, customerID uuid.UUID, amount float64) (uuid.UUID, error) {
+func (p paymentService) CreateRefund(orderID, customerID uuid.UUID, amount float64) (uuid.UUID, error) {
 	if amount < 0 {
 		return uuid.Nil, ErrAddingNegativeAmount
 	}
