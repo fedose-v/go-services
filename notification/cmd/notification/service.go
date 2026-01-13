@@ -5,23 +5,20 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"time"
 
 	"gitea.xscloud.ru/xscloud/golib/pkg/application/logging"
 	libio "gitea.xscloud.ru/xscloud/golib/pkg/common/io"
-	"gitea.xscloud.ru/xscloud/golib/pkg/infrastructure/mysql"
-	"gitea.xscloud.ru/xscloud/golib/pkg/infrastructure/outbox"
 	"github.com/gorilla/mux"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 
-	internalapi "payment/api/server/paymentpublicapi"
-	appservice "payment/pkg/payment/app/service"
-	"payment/pkg/payment/infrastructure/integrationevent"
-	inframysql "payment/pkg/payment/infrastructure/mysql"
-	"payment/pkg/payment/infrastructure/mysql/query"
-	"payment/pkg/payment/infrastructure/transport"
-	"payment/pkg/payment/infrastructure/transport/middlewares"
+	"notification/api/server/notificationinternal"
+	"notification/pkg/notification/infrastructure/mysql/query"
+	"notification/pkg/notification/infrastructure/transport"
+	"notification/pkg/notification/infrastructure/transport/middlewares"
 )
 
 type serviceConfig struct {
@@ -49,17 +46,9 @@ func service(logger logging.Logger) *cli.Command {
 				return err
 			}
 			closer.AddCloser(databaseConnector)
-			databaseConnectionPool := mysql.NewConnectionPool(databaseConnector.TransactionalClient())
 
-			libUoW := mysql.NewUnitOfWork(databaseConnectionPool, inframysql.NewRepositoryProvider)
-			libLUow := mysql.NewLockableUnitOfWork(libUoW, mysql.NewLocker(databaseConnectionPool))
-			uow := inframysql.NewUnitOfWork(libUoW)
-			luow := inframysql.NewLockableUnitOfWork(libLUow)
-			eventDispatcher := outbox.NewEventDispatcher(appID, integrationevent.TransportName, integrationevent.NewEventSerializer(), libUoW)
-
-			paymentPublicAPIServer := transport.NewPaymentInternalApi(
-				query.NewAccountBalanceQueryService(databaseConnector.TransactionalClient()),
-				appservice.NewPaymentService(uow, luow, eventDispatcher),
+			notificationAPI := transport.NewNotificationInternalAPI(
+				query.NewNotificationQueryService(databaseConnector.TransactionalClient()),
 			)
 
 			errGroup := errgroup.Group{}
@@ -71,7 +60,8 @@ func service(logger logging.Logger) *cli.Command {
 				grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(
 					middlewares.NewGRPCLoggingMiddleware(logger),
 				))
-				internalapi.RegisterPayemntInternalAPIServer(grpcServer, paymentPublicAPIServer)
+				notificationinternal.RegisterNotificationInternalServiceServer(grpcServer, notificationAPI)
+				reflection.Register(grpcServer)
 				graceCallback(c.Context, logger, cnf.Service.GracePeriod, func(_ context.Context) error {
 					grpcServer.GracefulStop()
 					return nil
@@ -81,10 +71,11 @@ func service(logger logging.Logger) *cli.Command {
 			errGroup.Go(func() error {
 				router := mux.NewRouter()
 				registerHealthcheck(router)
-				// nolint:gosec
+				registerMetrics(router)
 				server := http.Server{
-					Addr:    cnf.Service.HTTPAddress,
-					Handler: router,
+					Addr:              cnf.Service.HTTPAddress,
+					Handler:           router,
+					ReadHeaderTimeout: 5 * time.Second,
 				}
 				graceCallback(c.Context, logger, cnf.Service.GracePeriod, server.Shutdown)
 				return server.ListenAndServe()

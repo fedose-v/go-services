@@ -15,7 +15,6 @@ local gocache = [
 local gosources = [
     "go.mod",
     "go.sum",
-    "data",
     "cmd",
     "api",
     "pkg",
@@ -37,6 +36,7 @@ local gosources = [
                 workdir: "/app",
                 env: {
                     GOCACHE: "/app/cache/go-build",
+                    CGO_ENABLED: "0",
                 },
                 copy: copyFrom(
                     'gosources',

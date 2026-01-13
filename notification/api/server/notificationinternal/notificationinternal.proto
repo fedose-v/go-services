@@ -1,13 +1,24 @@
 syntax = "proto3";
-package notification;
+package Notification;
 
 option go_package = "/.;notificationinternal";
 
-service notificationInternalService {
-  rpc Ping(PingRequest) returns (PingResponse);
+service NotificationInternalService {
+  rpc FindNotificationsForUser(FindNotificationsForUserRequest) returns (FindNotificationsForUserResponse);
 }
 
-message PingRequest {}
-message PingResponse {
-  string message = 1;
+message FindNotificationsForUserRequest {
+  string notificationID = 1;
+}
+
+message FindNotificationsForUserResponse {
+  Notification notification = 1;
+}
+
+message Notification {
+  string notificationID = 1;
+  string name = 2;
+  string subject = 3;
+  string body = 4;
+  int64 createdAt = 5;
 }

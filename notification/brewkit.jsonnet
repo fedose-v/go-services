@@ -5,7 +5,6 @@ local appIDs = [
 ];
 
 local proto = [
-    'api/client/testinternal/testinternal.proto',
     'api/server/notificationinternal/notificationinternal.proto',
 ];
 

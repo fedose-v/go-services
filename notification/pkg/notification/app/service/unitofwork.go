@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"notification/pkg/domain/model"
+	"notification/pkg/notification/domain/model"
 )
 
 type RepositoryProvider interface {

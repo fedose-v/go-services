@@ -6,11 +6,9 @@ import (
 	"gitea.xscloud.ru/xscloud/golib/pkg/application/logging"
 	libio "gitea.xscloud.ru/xscloud/golib/pkg/common/io"
 	"gitea.xscloud.ru/xscloud/golib/pkg/infrastructure/mysql"
-	outboxmigrations "gitea.xscloud.ru/xscloud/golib/pkg/infrastructure/outbox/migrations"
 	"github.com/urfave/cli/v2"
 
-	"payment/pkg/payment/infrastructure/integrationevent"
-	"payment/pkg/payment/infrastructure/migrations/database"
+	"notification/pkg/notification/infrastructure/migrations/database"
 )
 
 type migrateConfig struct {
@@ -54,17 +52,7 @@ func migrateImpl(logger logging.Logger) func(c *cli.Context) error {
 		}
 		closer.AddCloser(libio.CloserFunc(closeDatabaseMigrator))
 
-		domainOutboxMigrator, domainOutboxRelease, err := outboxmigrations.NewOutboxMigrator(c.Context, connPool, logger, integrationevent.TransportName)
-		if err != nil {
-			return err
-		}
-		closer.AddCloser(domainOutboxRelease)
-
 		err = databaseMigrator.Migrate()
-		if err != nil {
-			return err
-		}
-		err = domainOutboxMigrator.Migrate()
 		if err != nil {
 			return err
 		}

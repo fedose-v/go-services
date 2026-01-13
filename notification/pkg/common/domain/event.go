@@ -1,9 +1,9 @@
-package event
+package domain
 
 type Event interface {
 	Type() string
 }
 
-type Dispatcher interface {
+type EventDispatcher interface {
 	Dispatch(event Event) error
 }

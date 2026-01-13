@@ -1,38 +1,79 @@
-version: '3.3'
-
 services:
   notification:
-    image: notification
     container_name: notification
     build:
       context: .
       dockerfile: Dockerfile
+    command:
+      - service
     ports:
-      - "8081:8081" # GRPC API port
+      - "8081:8081"
+      - "8082:8082"
     environment:
-      NOTIFICATION_DB_HOST: notification-db
-      NOTIFICATION_DB_PORT: 3311
-      NOTIFICATION_DB_NAME: notification
-      NOTIFICATION_DB_USER: notification
-      NOTIFICATION_DB_PASSWORD: 1234
-      NOTIFICATION_DB_MAX_CONN: 5
+      USER_DATABASE_HOST: notification-db
+      USER_DATABASE_NAME: notification
+      USER_DATABASE_USER: notification
+      USER_DATABASE_PASSWORD: 1234
     depends_on:
-      - notification-db
-    restart: unless-stopped
+      notification-db:
+        condition: service_healthy
+
+  notification-message-handler:
+    container_name: notification-message-handler
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      - message-handler
+    environment:
+      USER_DATABASE_HOST: notification-db
+      USER_DATABASE_NAME: notification
+      USER_DATABASE_USER: notification
+      USER_DATABASE_PASSWORD: 1234
+
+      USER_AMQP_HOST: notification-rmq
+      USER_AMQP_USER: guest
+      USER_AMQP_PASSWORD: guest
+
+      USER_TEMPORAL_HOST: notification-temporal:7234
+    depends_on:
+      notification-db:
+        condition: service_healthy
+      notification-rmq:
+        condition: service_healthy
 
   notification-db:
-    image: percona:8.0
+    image: "mysql:8.3"
     container_name: notification-db
+    command: [ "--max_connections=100" ]
+    volumes:
+      - "notification-db-data:/var/lib/mysql"
     environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: yes
       MYSQL_DATABASE: notification
       MYSQL_USER: notification
       MYSQL_PASSWORD: 1234
-      MYSQL_ROOT_PASSWORD: 1234
     ports:
-      - "3311:3311"
+      - "3307:3307"
+    healthcheck:
+      test: mysql -h127.0.0.1 -uroot -e 'SELECT 1'
+      interval: 10s
+      timeout: 30s
+
+  notification-rmq:
+    image: "rabbitmq:4.2.0-management-alpine"
+    container_name: notification-rmq
+    hostname: notification-rmq
+    ports:
+      - "15672:15672"
     volumes:
-      - notification-db-data:/var/lib/mysql
-    restart: unless-stopped
+      - "notification-rmq-data:/var/lib/rabbitmq/mnesia"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 1s
+      timeout: 3s
+      retries: 30
 
 volumes:
   notification-db-data:
+  notification-rmq-data:

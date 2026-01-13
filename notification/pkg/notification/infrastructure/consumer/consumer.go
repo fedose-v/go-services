@@ -1,0 +1,135 @@
+package consumer
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"gitea.xscloud.ru/xscloud/golib/pkg/application/logging"
+	"gitea.xscloud.ru/xscloud/golib/pkg/infrastructure/amqp"
+	"gitea.xscloud.ru/xscloud/golib/pkg/infrastructure/mysql"
+	"github.com/google/uuid"
+	"github.com/pkg/errors"
+
+	appservice "notification/pkg/notification/app/service"
+	"notification/pkg/notification/infrastructure/metrics"
+)
+
+type EventConsumer struct {
+	conn                amqp.Connection
+	notificationService appservice.NotificationService
+	logger              logging.Logger
+	ctx                 context.Context
+}
+
+func NewEventConsumer(
+	ctx context.Context,
+	conn amqp.Connection,
+	pool mysql.ConnectionPool,
+	logger logging.Logger,
+) (*EventConsumer, error) {
+	uow := &unitOfWorkForSync{pool: pool}
+
+	return &EventConsumer{
+		conn:                conn,
+		notificationService: appservice.NewNotificationService(uow),
+		logger:              logger,
+		ctx:                 ctx,
+	}, nil
+}
+
+func (c *EventConsumer) Handler() amqp.Handler {
+	return c.handle
+}
+
+func (c *EventConsumer) handle(ctx context.Context, delivery amqp.Delivery) (err error) {
+	start := time.Now()
+	defer func() {
+		status := "success"
+		if err != nil {
+			status = "error"
+		}
+		metrics.EventDuration.WithLabelValues(delivery.Type, status).Observe(time.Since(start).Seconds())
+	}()
+
+	l := c.logger.WithField("event_type", delivery.Type)
+	l.Info("processing event")
+
+	var name, subject, body string
+
+	switch delivery.Type {
+	case "user_created":
+		var event struct {
+			UserID string `json:"user_id"`
+			Login  string `json:"login"`
+		}
+		if err = json.Unmarshal(delivery.Body, &event); err != nil {
+			err = errors.Wrap(err, "failed to unmarshal user_created")
+			break
+		}
+
+		l.Info(fmt.Sprintf("Sending email to new user %s (%s)", event.Login, event.UserID))
+		return nil
+
+	case "order_created":
+		var event struct {
+			OrderID string `json:"order_id"`
+			UserID  string `json:"user_id"`
+		}
+		if err = json.Unmarshal(delivery.Body, &event); err != nil {
+			err = errors.Wrap(err, "failed to unmarshal order_created")
+			break
+		}
+
+		orderID, _ := uuid.Parse(event.OrderID)
+		name = "order_created"
+		subject = "Order was created"
+		body = fmt.Sprintf("Order #%s has been created", orderID.String())
+
+	case "order_paid":
+		var event struct {
+			OrderID string `json:"order_id"`
+		}
+		if err = json.Unmarshal(delivery.Body, &event); err != nil {
+			err = errors.Wrap(err, "failed to unmarshal order_paid")
+			break
+		}
+		orderID, _ := uuid.Parse(event.OrderID)
+		name = "order_paid"
+		subject = "Order was paid"
+		body = fmt.Sprintf("Order #%s has been paid successfully.", orderID.String())
+
+	case "order_cancelled":
+		var event struct {
+			OrderID string `json:"order_id"`
+			Reason  string `json:"reason"`
+		}
+		if err = json.Unmarshal(delivery.Body, &event); err != nil {
+			err = errors.Wrap(err, "failed to unmarshal order_cancelled")
+			break
+		}
+		orderID, _ := uuid.Parse(event.OrderID)
+		name = "order_cancelled"
+		subject = "Order was cancelled"
+		body = fmt.Sprintf("Order #%s has been cancelled. Reason: %s", orderID.String(), event.Reason)
+
+	default:
+		l.WithField("type", delivery.Type).Info("unhandled event type")
+		return nil
+	}
+
+	if err != nil {
+		l.Error(err, "failed to process event payload")
+		return err
+	}
+
+	if subject != "" && body != "" {
+		_, createErr := c.notificationService.CreateNotification(ctx, name, subject, body)
+		if createErr != nil {
+			err = createErr
+			l.Error(err, "failed to create notification")
+		}
+	}
+	return err
+}
