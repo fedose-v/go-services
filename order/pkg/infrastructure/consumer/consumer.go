@@ -48,9 +48,9 @@ func (c *EventConsumer) Handler() amqp.Handler {
 func (c *EventConsumer) handle(ctx context.Context, delivery amqp.Delivery) (err error) {
 	start := time.Now()
 	defer func() {
-		status := "success"
+		status := metrics.StatusSuccess
 		if err != nil {
-			status = "error"
+			status = metrics.StatusError
 		}
 		metrics.EventDuration.WithLabelValues(delivery.Type, status).Observe(time.Since(start).Seconds())
 	}()
@@ -66,12 +66,12 @@ func (c *EventConsumer) handle(ctx context.Context, delivery amqp.Delivery) (err
 		}
 		if err = json.Unmarshal(delivery.Body, &event); err != nil {
 			l.Error(err, "failed to unmarshal user event")
-			return nil
+			return err
 		}
 		userID, parseErr := uuid.Parse(event.UserID)
 		if parseErr != nil {
 			l.Error(parseErr, "invalid user id in user event")
-			return nil
+			return err
 		}
 
 		storeErr := c.dataSyncService.SyncUser(ctx, model.LocalUser{
@@ -80,7 +80,7 @@ func (c *EventConsumer) handle(ctx context.Context, delivery amqp.Delivery) (err
 		})
 		if storeErr != nil {
 			l.Error(storeErr, "failed to sync user")
-			return nil
+			return err
 		}
 		l.Info("user synced successfully")
 		return errors.New("user processed")

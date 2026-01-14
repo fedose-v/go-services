@@ -7,15 +7,15 @@ replace gitea.xscloud.ru/xscloud/golib v1.2.4 => github.com/veresnikov/rp-golib 
 require (
 	gitea.xscloud.ru/xscloud/golib v1.2.4
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/mux v1.7.4
+	github.com/gorilla/mux v1.8.1
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v2 v2.27.7
-	golang.org/x/sync v0.16.0
-	google.golang.org/grpc v1.76.0
-	google.golang.org/protobuf v1.36.8
+	golang.org/x/sync v0.19.0
+	google.golang.org/grpc v1.78.0
+	google.golang.org/protobuf v1.36.11
 )
 
 require (
@@ -40,9 +40,9 @@ require (
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
-	golang.org/x/net v0.43.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b // indirect
+	golang.org/x/net v0.49.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/text v0.33.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260114163908-3f89685c29c3 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
