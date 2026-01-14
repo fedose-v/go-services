@@ -1,56 +1,392 @@
 services:
-  shorturl:
-    container_name: shorturl
-    restart: always
-    build:
-      context: ./shorturl
-      dockerfile: Dockerfile
-    env_file:
-      - .env
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "https://127.0.0.1:8080/" ]
-      interval: 3s
-      timeout: 4s
-      retries: 3
-      start_period: 3s
-    networks:
-      - app-network
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yaml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yaml'
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
     depends_on:
-      redis:
+      - prometheus
+
+  user:
+    container_name: user
+    build:
+      context: ./user
+      dockerfile: Dockerfile
+    command:
+      - service
+    ports:
+      - "8081:8081"
+    environment:
+      USER_DATABASE_HOST: user-db
+      USER_DATABASE_NAME: user
+      USER_DATABASE_USER: user
+      USER_DATABASE_PASSWORD: 1234
+    depends_on:
+      user-db:
         condition: service_healthy
 
-  nginx:
-    image: nginx:alpine
-    container_name: nginx
-    restart: always
-    volumes:
-      - ./conf/nginx/nginx.conf:/etc/nginx/nginx.conf
-    ports:
-      - "127.0.0.1:8080:8080"
-    networks:
-      - app-network
+  user-workflow-worker:
+    container_name: user-workflow-worker
+    build:
+      context: ./user
+      dockerfile: Dockerfile
+    command:
+      - workflow-worker
+    environment:
+      USER_DATABASE_HOST: user-db
+      USER_DATABASE_NAME: user
+      USER_DATABASE_USER: user
+      USER_DATABASE_PASSWORD: 1234
+      USER_TEMPORAL_HOST: user-temporal:7233
+    depends_on:
+      user-db:
+        condition: service_healthy
+      user-temporal:
+        condition: service_started
 
-  redis:
-    container_name: redis
-    image: redis:8.0-rc1
+  user-message-handler:
+    container_name: user-message-handler
+    build:
+      context: ./user
+      dockerfile: Dockerfile
+    command:
+      - message-handler
+    environment:
+      USER_DATABASE_HOST: user-db
+      USER_DATABASE_NAME: user
+      USER_DATABASE_USER: user
+      USER_DATABASE_PASSWORD: 1234
+
+      USER_AMQP_HOST: user-rmq
+      USER_AMQP_USER: guest
+      USER_AMQP_PASSWORD: guest
+      USER_TEMPORAL_HOST: user-temporal:7233
+    depends_on:
+      user-db:
+        condition: service_healthy
+      user-rmq:
+        condition: service_healthy
+      user-temporal:
+        condition: service_started
+
+  inventory:
+    build:
+      context: ./inventory
+    container_name: inventory
+    command:
+      - service
     ports:
-      - "6379:6379"
+      - "8083:8081"
+      - "8084:8082"
+    environment:
+      PRODUCT_DATABASE_HOST: inventory-db
+      PRODUCT_DATABASE_NAME: inventory
+      PRODUCT_DATABASE_USER: inventory
+      PRODUCT_DATABASE_PASSWORD: 1234
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+
+  inventory-message-handler:
+    build:
+      context: ./inventory
+    container_name: inventory-message-handler
+    command:
+      - message-handler
+    environment:
+      PRODUCT_DATABASE_HOST: inventory-db
+      PRODUCT_DATABASE_NAME: inventory
+      PRODUCT_DATABASE_USER: inventory
+      PRODUCT_DATABASE_PASSWORD: 1234
+      PRODUCT_AMQP_HOST: user-rmq
+      PRODUCT_AMQP_USER: guest
+      PRODUCT_AMQP_PASSWORD: guest
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+      user-rmq:
+        condition: service_healthy
+
+  payment:
+    build:
+      context: ./payment
+    container_name: payment
+    command:
+      - service
+    ports:
+      - "8085:8081"
+      - "8086:8082"
+    environment:
+      PAYMENT_DATABASE_HOST: payment-db
+      PAYMENT_DATABASE_NAME: payment
+      PAYMENT_DATABASE_USER: payment
+      PAYMENT_DATABASE_PASSWORD: 1234
+    depends_on:
+      payment-db:
+        condition: service_healthy
+
+  payment-message-handler:
+    build:
+      context: ./payment
+    container_name: payment-message-handler
+    command:
+      - message-handler
+    environment:
+      PAYMENT_DATABASE_HOST: payment-db
+      PAYMENT_DATABASE_NAME: payment
+      PAYMENT_DATABASE_USER: payment
+      PAYMENT_DATABASE_PASSWORD: 1234
+      PAYMENT_AMQP_HOST: user-rmq
+      PAYMENT_AMQP_USER: guest
+      PAYMENT_AMQP_PASSWORD: guest
+    depends_on:
+      payment-db:
+        condition: service_healthy
+      user-rmq:
+        condition: service_healthy
+
+  order:
+    build:
+      context: ./order
+    container_name: order
+    command:
+      - service
+    ports:
+      - "8087:8081"
+      - "8088:8082"
+    environment:
+      ORDER_DATABASE_HOST: order-db
+      ORDER_DATABASE_NAME: order
+      ORDER_DATABASE_USER: order
+      ORDER_DATABASE_PASSWORD: 1234
+    depends_on:
+      order-db:
+        condition: service_healthy
+
+  order-message-handler:
+    build:
+      context: ./order
+    container_name: order-message-handler
+    command:
+      - message-handler
+    environment:
+      ORDER_DATABASE_HOST: order-db
+      ORDER_DATABASE_NAME: order
+      ORDER_DATABASE_USER: order
+      ORDER_DATABASE_PASSWORD: 1234
+      ORDER_AMQP_HOST: user-rmq
+      ORDER_AMQP_USER: guest
+      ORDER_AMQP_PASSWORD: guest
+    depends_on:
+      order-db:
+        condition: service_healthy
+      user-rmq:
+        condition: service_healthy
+
+  notification:
+    build:
+      context: ./notification
+    container_name: notification
+    command:
+      - service
+    ports:
+      - "8089:8081"
+      - "8090:8082"
+    environment:
+      NOTIFICATION_DATABASE_HOST: notification-db
+      NOTIFICATION_DATABASE_NAME: notification
+      NOTIFICATION_DATABASE_USER: notification
+      NOTIFICATION_DATABASE_PASSWORD: 1234
+    depends_on:
+      notification-db:
+        condition: service_healthy
+
+  notification-message-handler:
+    build:
+      context: ./notification
+    container_name: notification-message-handler
+    command:
+      - message-handler
+    environment:
+      NOTIFICATION_DATABASE_HOST: notification-db
+      NOTIFICATION_DATABASE_NAME: notification
+      NOTIFICATION_DATABASE_USER: notification
+      NOTIFICATION_DATABASE_PASSWORD: 1234
+      NOTIFICATION_AMQP_HOST: user-rmq
+      NOTIFICATION_AMQP_USER: guest
+      NOTIFICATION_AMQP_PASSWORD: guest
+    depends_on:
+      notification-db:
+        condition: service_healthy
+      user-rmq:
+        condition: service_healthy
+
+  user-db:
+    image: "mysql:8.3"
+    container_name: user-db
+    command: [ "--max_connections=100" ]
     volumes:
-      - redis_data:/data
-      - ./conf/redis/redis.conf:/usr/local/etc/redis/redis.conf
-    env_file:
-      - .env
-    command: [ "redis-server", "--requirepass", "${REDIS_PASSWORD}" ]
+      - "user-db-data:/var/lib/mysql"
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: yes
+      MYSQL_DATABASE: user
+      MYSQL_USER: user
+      MYSQL_PASSWORD: 1234
+    ports:
+      - "3306:3306"
     healthcheck:
-      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
+      test: mysql -h127.0.0.1 -uroot -e 'SELECT 1'
       interval: 10s
-      timeout: 5s
-      retries: 3
-    networks:
-      - app-network
+      timeout: 30s
 
-networks:
-  app-network:
+  inventory-db:
+    image: "mysql:8.3"
+    container_name: inventory-db
+    command: [ "--max_connections=100" ]
+    volumes:
+      - "inventory-db-data:/var/lib/mysql"
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: yes
+      MYSQL_DATABASE: inventory
+      MYSQL_USER: inventory
+      MYSQL_PASSWORD: 1234
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: mysql -h127.0.0.1 -uroot -e 'SELECT 1'
+      interval: 10s
+      timeout: 30s
+
+  payment-db:
+    image: "mysql:8.3"
+    container_name: payment-db
+    command: [ "--max_connections=100" ]
+    volumes:
+      - "payment-db-data:/var/lib/mysql"
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: yes
+      MYSQL_DATABASE: payment
+      MYSQL_USER: payment
+      MYSQL_PASSWORD: 1234
+    ports:
+      - "3308:3306"
+    healthcheck:
+      test: mysql -h127.0.0.1 -uroot -e 'SELECT 1'
+      interval: 10s
+      timeout: 30s
+
+  order-db:
+    image: "mysql:8.3"
+    container_name: order-db
+    command: [ "--max_connections=100" ]
+    volumes:
+      - "order-db-data:/var/lib/mysql"
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: yes
+      MYSQL_DATABASE: order
+      MYSQL_USER: order
+      MYSQL_PASSWORD: 1234
+    ports:
+      - "3309:3306"
+    healthcheck:
+      test: mysql -h127.0.0.1 -uroot -e 'SELECT 1'
+      interval: 10s
+      timeout: 30s
+
+  notification-db:
+    image: "mysql:8.3"
+    container_name: notification-db
+    command: [ "--max_connections=100" ]
+    volumes:
+      - "notification-db-data:/var/lib/mysql"
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: yes
+      MYSQL_DATABASE: notification
+      MYSQL_USER: notification
+      MYSQL_PASSWORD: 1234
+    ports:
+      - "3310:3306"
+    healthcheck:
+      test: mysql -h127.0.0.1 -uroot -e 'SELECT 1'
+      interval: 10s
+      timeout: 30s
+
+  user-rmq:
+    image: "rabbitmq:4.2.0-management-alpine"
+    container_name: user-rmq
+    hostname: user-rmq
+    ports:
+      - "5673:5672"
+      - "15672:15672"
+    volumes:
+      - "user-rmq-data:/var/lib/rabbitmq"
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  user-temporal:
+    container_name: user-temporal
+    depends_on:
+      user-db:
+        condition: service_healthy
+    environment:
+      - DB=mysql8
+      - DB_PORT=3306
+      - MYSQL_USER=root
+      - MYSQL_PWD=
+      - MYSQL_SEEDS=user-db
+      - TEMPORAL_ADDRESS=user-temporal:7233
+      - TEMPORAL_CLI_ADDRESS=user-temporal:7233
+    image: temporalio/auto-setup:1.29.1
+    ports:
+      - 7233:7233
+
+  user-temporal-admin-tools:
+    container_name: user-temporal-admin-tools
+    depends_on:
+      - user-temporal
+    environment:
+      - TEMPORAL_ADDRESS=user-temporal:7233
+      - TEMPORAL_CLI_ADDRESS=user-temporal:7233
+    image: temporalio/admin-tools:1.29.1-tctl-1.18.4-cli-1.5.0
+    stdin_open: true
+    tty: true
+
+  user-temporal-ui:
+    container_name: user-temporal-ui
+    depends_on:
+      - user-temporal
+    environment:
+      - TEMPORAL_ADDRESS=user-temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    image: temporalio/ui:2.34.0
+    ports:
+      - 8080:8080
 
 volumes:
-  redis_data:
+  user-db-data:
+  inventory-db-data:
+  payment-db-data:
+  order-db-data:
+  notification-db-data:
+  user-rmq-data:
