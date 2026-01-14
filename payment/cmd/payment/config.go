@@ -36,7 +36,3 @@ type AMQP struct {
 	Host           string        `envconfig:"host" required:"true"`
 	ConnectTimeout time.Duration `envconfig:"connect_timeout"`
 }
-
-type Temporal struct {
-	Host string `envconfig:"host" required:"true"`
-}

@@ -34,8 +34,6 @@ services:
       USER_AMQP_HOST: payment-rmq
       USER_AMQP_USER: guest
       USER_AMQP_PASSWORD: guest
-
-      USER_TEMPORAL_HOST: payment-temporal:7234
     depends_on:
       payment-db:
         condition: service_healthy
