@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - mysql.yaml
+  - secret.yaml
+  - inventory-secret.yaml
+  - notification-secret.yaml
+  - order-secret.yaml
+  - payment-secret.yaml
+  - user-secret.yaml

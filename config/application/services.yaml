@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-api
+  namespace: application
+spec:
+  selector:
+    app: inventory-api
+  ports:
+    - name: grpc
+      port: 8081
+      targetPort: 8081
+    - name: http
+      port: 8082
+      targetPort: 8082
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-api
+  namespace: application
+spec:
+  selector:
+    app: notification-api
+  ports:
+    - name: grpc
+      port: 8081
+      targetPort: 8081
+    - name: http
+      port: 8082
+      targetPort: 8082
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-api
+  namespace: application
+spec:
+  selector:
+    app: order-api
+  ports:
+    - name: grpc
+      port: 8081
+      targetPort: 8081
+    - name: http
+      port: 8082
+      targetPort: 8082
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-api
+  namespace: application
+spec:
+  selector:
+    app: payment-api
+  ports:
+    - name: grpc
+      port: 8081
+      targetPort: 8081
+    - name: http
+      port: 8082
+      targetPort: 8082
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-api
+  namespace: application
+spec:
+  selector:
+    app: user-api
+  ports:
+    - name: grpc
+      port: 8081
+      targetPort: 8081
+    - name: http
+      port: 8082
+      targetPort: 8082

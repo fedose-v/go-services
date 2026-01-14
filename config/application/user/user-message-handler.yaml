@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: user-api
+  name: user-message-handler
   labels:
-    app: user-api
+    app: user-message-handler
 spec:
-  replicas: 4
+  replicas: 1
   strategy:
-    type: RollingUpdate
+    type: Recreate
   selector:
     matchLabels:
-      app: user-api
+      app: user-message-handler
   template:
     metadata:
-      name: user-api
+      name: user-message-handler
       labels:
-        app: user-api
+        app: user-message-handler
     spec:
       initContainers:
         - name: user-migrator
@@ -41,7 +41,7 @@ spec:
                   name: user-database-access
                   key: USER_DATABASE_PASSWORD
       containers:
-        - name: user-api
+        - name: user-message-handler
           image: rp-user:latest
           livenessProbe:
             httpGet:
@@ -55,7 +55,7 @@ spec:
           command:
             - /app/user
           args:
-            - service
+            - message-handler
           env:
             - name: USER_DATABASE_HOST
               value: mysql.infrastructure.svc.cluster.local:3306
@@ -71,6 +71,20 @@ spec:
                 secretKeyRef:
                   name: user-database-access
                   key: USER_DATABASE_PASSWORD
+            - name: USER_AMQP_HOST
+              value: rabbitmq.infrastructure.svc.cluster.local:5672
+            - name: USER_AMQP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: rabbitmq-username
+            - name: USER_AMQP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: rabbitmq-password
+            - name: USER_TEMPORAL_HOST
+              value: temporal.infrastructure.svc.cluster.local:7233
           ports:
             - containerPort: 8081
               protocol: TCP

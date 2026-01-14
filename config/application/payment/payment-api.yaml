@@ -1,48 +1,48 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: user-api
+  name: payment-api
   labels:
-    app: user-api
+    app: payment-api
 spec:
   replicas: 4
   strategy:
     type: RollingUpdate
   selector:
     matchLabels:
-      app: user-api
+      app: payment-api
   template:
     metadata:
-      name: user-api
+      name: payment-api
       labels:
-        app: user-api
+        app: payment-api
     spec:
       initContainers:
-        - name: user-migrator
-          image: rp-user:latest
+        - name: payment-migrator
+          image: rp-payment:latest
           imagePullPolicy: Never
           command:
-            - /app/user
+            - /app/payment
           args:
             - migrate
           env:
-            - name: USER_DATABASE_HOST
+            - name: PAYMENT_DATABASE_HOST
               value: mysql.infrastructure.svc.cluster.local:3306
-            - name: USER_DATABASE_NAME
-              value: user
-            - name: USER_DATABASE_USER
+            - name: PAYMENT_DATABASE_NAME
+              value: payment
+            - name: PAYMENT_DATABASE_USER
               valueFrom:
                 secretKeyRef:
-                  name: user-database-access
-                  key: USER_DATABASE_USER
-            - name: USER_DATABASE_PASSWORD
+                  name: payment-database-access
+                  key: PAYMENT_DATABASE_USER
+            - name: PAYMENT_DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: user-database-access
-                  key: USER_DATABASE_PASSWORD
+                  name: payment-database-access
+                  key: PAYMENT_DATABASE_PASSWORD
       containers:
-        - name: user-api
-          image: rp-user:latest
+        - name: payment-api
+          image: rp-payment:latest
           livenessProbe:
             httpGet:
               port: http
@@ -53,24 +53,24 @@ spec:
               path: /healthz
           imagePullPolicy: Never
           command:
-            - /app/user
+            - /app/payment
           args:
             - service
           env:
-            - name: USER_DATABASE_HOST
+            - name: PAYMENT_DATABASE_HOST
               value: mysql.infrastructure.svc.cluster.local:3306
-            - name: USER_DATABASE_NAME
-              value: user
-            - name: USER_DATABASE_USER
+            - name: PAYMENT_DATABASE_NAME
+              value: payment
+            - name: PAYMENT_DATABASE_USER
               valueFrom:
                 secretKeyRef:
-                  name: user-database-access
-                  key: USER_DATABASE_USER
-            - name: USER_DATABASE_PASSWORD
+                  name: payment-database-access
+                  key: PAYMENT_DATABASE_USER
+            - name: PAYMENT_DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: user-database-access
-                  key: USER_DATABASE_PASSWORD
+                  name: payment-database-access
+                  key: PAYMENT_DATABASE_PASSWORD
           ports:
             - containerPort: 8081
               protocol: TCP

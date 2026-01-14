@@ -1,48 +1,48 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: user-api
+  name: inventory-api
   labels:
-    app: user-api
+    app: inventory-api
 spec:
   replicas: 4
   strategy:
     type: RollingUpdate
   selector:
     matchLabels:
-      app: user-api
+      app: inventory-api
   template:
     metadata:
-      name: user-api
+      name: inventory-api
       labels:
-        app: user-api
+        app: inventory-api
     spec:
       initContainers:
-        - name: user-migrator
-          image: rp-user:latest
+        - name: inventory-migrator
+          image: rp-inventory:latest
           imagePullPolicy: Never
           command:
-            - /app/user
+            - /app/inventory
           args:
             - migrate
           env:
-            - name: USER_DATABASE_HOST
+            - name: INVENTORY_DATABASE_HOST
               value: mysql.infrastructure.svc.cluster.local:3306
-            - name: USER_DATABASE_NAME
-              value: user
-            - name: USER_DATABASE_USER
+            - name: INVENTORY_DATABASE_NAME
+              value: inventory
+            - name: INVENTORY_DATABASE_USER
               valueFrom:
                 secretKeyRef:
-                  name: user-database-access
-                  key: USER_DATABASE_USER
-            - name: USER_DATABASE_PASSWORD
+                  name: inventory-database-access
+                  key: INVENTORY_DATABASE_USER
+            - name: INVENTORY_DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: user-database-access
-                  key: USER_DATABASE_PASSWORD
+                  name: inventory-database-access
+                  key: INVENTORY_DATABASE_PASSWORD
       containers:
-        - name: user-api
-          image: rp-user:latest
+        - name: inventory-api
+          image: rp-inventory:latest
           livenessProbe:
             httpGet:
               port: http
@@ -53,24 +53,24 @@ spec:
               path: /healthz
           imagePullPolicy: Never
           command:
-            - /app/user
+            - /app/inventory
           args:
             - service
           env:
-            - name: USER_DATABASE_HOST
+            - name: INVENTORY_DATABASE_HOST
               value: mysql.infrastructure.svc.cluster.local:3306
-            - name: USER_DATABASE_NAME
-              value: user
-            - name: USER_DATABASE_USER
+            - name: INVENTORY_DATABASE_NAME
+              value: inventory
+            - name: INVENTORY_DATABASE_USER
               valueFrom:
                 secretKeyRef:
-                  name: user-database-access
-                  key: USER_DATABASE_USER
-            - name: USER_DATABASE_PASSWORD
+                  name: inventory-database-access
+                  key: INVENTORY_DATABASE_USER
+            - name: INVENTORY_DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: user-database-access
-                  key: USER_DATABASE_PASSWORD
+                  name: inventory-database-access
+                  key: INVENTORY_DATABASE_PASSWORD
           ports:
             - containerPort: 8081
               protocol: TCP

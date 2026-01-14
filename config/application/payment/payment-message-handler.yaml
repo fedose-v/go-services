@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-message-handler
+  labels:
+    app: payment-message-handler
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: payment-message-handler
+  template:
+    metadata:
+      name: payment-message-handler
+      labels:
+        app: payment-message-handler
+    spec:
+      initContainers:
+        - name: payment-migrator
+          image: rp-payment:latest
+          imagePullPolicy: Never
+          command:
+            - /app/payment
+          args:
+            - migrate
+          env:
+            - name: PAYMENT_DATABASE_HOST
+              value: mysql.infrastructure.svc.cluster.local:3306
+            - name: PAYMENT_DATABASE_NAME
+              value: payment
+            - name: PAYMENT_DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: payment-database-access
+                  key: PAYMENT_DATABASE_USER
+            - name: PAYMENT_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: payment-database-access
+                  key: PAYMENT_DATABASE_PASSWORD
+      containers:
+        - name: payment-message-handler
+          image: rp-payment:latest
+          livenessProbe:
+            httpGet:
+              port: http
+              path: /healthz
+          readinessProbe:
+            httpGet:
+              port: http
+              path: /healthz
+          imagePullPolicy: Never
+          command:
+            - /app/payment
+          args:
+            - message-handler
+          env:
+            - name: PAYMENT_DATABASE_HOST
+              value: mysql.infrastructure.svc.cluster.local:3306
+            - name: PAYMENT_DATABASE_NAME
+              value: payment
+            - name: PAYMENT_DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: payment-database-access
+                  key: PAYMENT_DATABASE_USER
+            - name: PAYMENT_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: payment-database-access
+                  key: PAYMENT_DATABASE_PASSWORD
+            - name: PAYMENT_AMQP_HOST
+              value: rabbitmq.infrastructure.svc.cluster.local:5672
+            - name: PAYMENT_AMQP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: rabbitmq-username
+            - name: PAYMENT_AMQP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: rabbitmq-password
+          ports:
+            - containerPort: 8081
+              protocol: TCP
+              name: grpc
+            - containerPort: 8082
+              protocol: TCP
+              name: http
+      restartPolicy: Always
+      
