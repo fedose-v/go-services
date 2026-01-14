@@ -10,16 +10,18 @@ import (
 	"gitea.xscloud.ru/xscloud/golib/pkg/infrastructure/amqp"
 	"github.com/google/uuid"
 
+	"user/pkg/user/application/service"
 	"user/pkg/user/domain/model"
 	"user/pkg/user/infrastructure/temporal"
 )
 
 var errUnhandledDelivery = errors.New("unhandled delivery")
 
-func NewAMQPTransport(logger logging.Logger, workflowService temporal.WorkflowService) AMQPTransport {
+func NewAMQPTransport(logger logging.Logger, workflowService temporal.WorkflowService, userService service.UserService) AMQPTransport {
 	return &amqpTransport{
 		logger:          logger,
 		workflowService: workflowService,
+		userService:     userService,
 	}
 }
 
@@ -30,6 +32,7 @@ type AMQPTransport interface {
 type amqpTransport struct {
 	logger          logging.Logger
 	workflowService temporal.WorkflowService
+	userService     service.UserService
 }
 
 func (t *amqpTransport) Handler() amqp.Handler {

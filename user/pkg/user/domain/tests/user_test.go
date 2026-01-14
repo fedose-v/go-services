@@ -40,7 +40,7 @@ func TestUserService_CreateUser_Success(t *testing.T) {
 		return ok && evt.UserID == userID && evt.Login == login
 	})).Return(nil)
 
-	resultID, err := userService.CreateUser(login)
+	resultID, err := userService.CreateUser(model.Active, login)
 	require.NoError(t, err)
 	assert.Equal(t, userID, resultID)
 
@@ -58,7 +58,7 @@ func TestUserService_CreateUser_LoginAlreadyUsed(t *testing.T) {
 
 	repo.On("Find", mock.AnythingOfType("model.FindSpec")).Return(existingUser, nil)
 
-	_, err := userService.CreateUser(login)
+	_, err := userService.CreateUser(model.Active, login)
 	require.ErrorIs(t, err, model.ErrUserLoginAlreadyUsed)
 
 	repo.AssertExpectations(t)
@@ -289,7 +289,7 @@ func TestUserService_UserNotFound(t *testing.T) {
 	repo.On("Find", mock.AnythingOfType("model.FindSpec")).Return((*model.User)(nil), model.ErrUserNotFound)
 
 	tests := []func() error{
-		func() error { _, err := userService.CreateUser("test"); return err },
+		func() error { _, err := userService.CreateUser(model.Active, "login"); return err },
 		func() error { return userService.UpdateUserStatus(userID, model.Active) },
 		func() error { email := "x"; return userService.UpdateUserEmail(userID, &email) },
 		func() error { tg := "@x"; return userService.UpdateUserTelegram(userID, &tg) },

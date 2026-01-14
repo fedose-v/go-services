@@ -12,7 +12,7 @@ import (
 )
 
 type UserService interface {
-	CreateUser(login string) (uuid.UUID, error)
+	CreateUser(status model.UserStatus, login string) (uuid.UUID, error)
 	UpdateUserStatus(userID uuid.UUID, status model.UserStatus) error
 	UpdateUserEmail(userID uuid.UUID, email *string) error
 	UpdateUserTelegram(userID uuid.UUID, telegram *string) error
@@ -34,7 +34,7 @@ type userService struct {
 	eventDispatcher domain.EventDispatcher
 }
 
-func (u userService) CreateUser(login string) (uuid.UUID, error) {
+func (u userService) CreateUser(status model.UserStatus, login string) (uuid.UUID, error) {
 	_, err := u.userRepository.Find(model.FindSpec{
 		Login: &login,
 	})
@@ -50,7 +50,6 @@ func (u userService) CreateUser(login string) (uuid.UUID, error) {
 		return uuid.Nil, err
 	}
 
-	status := model.Blocked
 	currentTime := time.Now()
 	err = u.userRepository.Store(model.User{
 		UserID:    userID,
@@ -102,7 +101,6 @@ func (u userService) UpdateUserStatus(userID uuid.UUID, status model.UserStatus)
 	})
 }
 
-// nolint:dupl
 func (u userService) UpdateUserEmail(userID uuid.UUID, email *string) error {
 	user, err := u.userRepository.Find(model.FindSpec{
 		UserID: &userID,
@@ -156,7 +154,6 @@ func (u userService) UpdateUserEmail(userID uuid.UUID, email *string) error {
 	})
 }
 
-// nolint:dupl
 func (u userService) UpdateUserTelegram(userID uuid.UUID, telegram *string) error {
 	user, err := u.userRepository.Find(model.FindSpec{
 		UserID: &userID,

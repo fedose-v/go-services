@@ -1,8 +1,8 @@
 package main
 
 import (
-	"errors"
 	"net/http"
+	"time"
 
 	"gitea.xscloud.ru/xscloud/golib/pkg/application/logging"
 	libio "gitea.xscloud.ru/xscloud/golib/pkg/common/io"
@@ -10,11 +10,12 @@ import (
 	"gitea.xscloud.ru/xscloud/golib/pkg/infrastructure/mysql"
 	"gitea.xscloud.ru/xscloud/golib/pkg/infrastructure/outbox"
 	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/sync/errgroup"
 
+	appservice "user/pkg/user/application/service"
 	"user/pkg/user/infrastructure/integrationevent"
+	inframysql "user/pkg/user/infrastructure/mysql"
 	"user/pkg/user/infrastructure/temporal"
 )
 
@@ -36,9 +37,7 @@ func messageHandler(logger logging.Logger) *cli.Command {
 			}
 
 			closer := libio.NewMultiCloser()
-			defer func() {
-				err = errors.Join(err, closer.Close())
-			}()
+			defer func() { _ = closer.Close() }()
 
 			databaseConnector, err := newDatabaseConnector(cnf.Database)
 			if err != nil {
@@ -58,36 +57,45 @@ func messageHandler(logger logging.Logger) *cli.Command {
 			workflowService := temporal.NewWorkflowService(temporalClient)
 
 			amqpConnection := newAMQPConnection(cnf.AMQP, logger)
-			queueConfig := &amqp.QueueConfig{
-				Name:    integrationevent.QueueName,
-				Durable: true,
-			}
-			bindConfig := &amqp.BindConfig{
-				QueueName:    integrationevent.QueueName,
-				ExchangeName: integrationevent.ExchangeName,
-				RoutingKeys:  []string{integrationevent.RoutingKeyPrefix + "#"},
-			}
+
 			amqpEventProducer := amqpConnection.Producer(
 				&amqp.ExchangeConfig{
 					Name:    integrationevent.ExchangeName,
 					Kind:    integrationevent.ExchangeKind,
 					Durable: true,
 				},
-				queueConfig,
-				bindConfig,
+				nil,
+				nil,
 			)
-			amqpTransport := integrationevent.NewAMQPTransport(logger, workflowService)
+
+			libUoW := mysql.NewUnitOfWork(databaseConnectionPool, inframysql.NewRepositoryProvider)
+			libLUow := mysql.NewLockableUnitOfWork(libUoW, mysql.NewLocker(databaseConnectionPool))
+			uow := inframysql.NewUnitOfWork(libUoW)
+			luow := inframysql.NewLockableUnitOfWork(libLUow)
+
+			eventDispatcher := outbox.NewEventDispatcher(
+				appID,
+				integrationevent.TransportName,
+				integrationevent.NewEventSerializer(),
+				libUoW,
+			)
+			userService := appservice.NewUserService(uow, luow, eventDispatcher)
+
+			amqpTransport := integrationevent.NewAMQPTransport(logger, workflowService, userService)
+
 			amqpConnection.Consumer(
 				c.Context,
 				amqpTransport.Handler(),
-				queueConfig,
-				bindConfig,
-				&amqp.QoSConfig{
-					PrefetchCount: 100,
+				&amqp.QueueConfig{Name: integrationevent.QueueName, Durable: true},
+				&amqp.BindConfig{
+					QueueName:    integrationevent.QueueName,
+					ExchangeName: integrationevent.ExchangeName,
+					RoutingKeys:  []string{integrationevent.RoutingKeyPrefix + "#"},
 				},
+				nil,
 			)
-			err = amqpConnection.Start()
-			if err != nil {
+
+			if err = amqpConnection.Start(); err != nil {
 				return err
 			}
 			closer.AddCloser(libio.CloserFunc(func() error {
@@ -96,7 +104,7 @@ func messageHandler(logger logging.Logger) *cli.Command {
 
 			outboxEventHandler := outbox.NewEventHandler(outbox.EventHandlerConfig{
 				TransportName:  integrationevent.TransportName,
-				Transport:      integrationevent.NewOutboxTransport(logger, amqpEventProducer),
+				Transport:      integrationevent.NewTransport(logger, amqpEventProducer),
 				ConnectionPool: databaseConnectionPool,
 				Logger:         logger,
 			})
@@ -109,11 +117,11 @@ func messageHandler(logger logging.Logger) *cli.Command {
 			errGroup.Go(func() error {
 				router := mux.NewRouter()
 				registerHealthcheck(router)
-				router.Handle("/metrics", promhttp.Handler())
-				// nolint:gosec
+				registerMetrics(router)
 				server := http.Server{
-					Addr:    cnf.Service.HTTPAddress,
-					Handler: router,
+					Addr:              cnf.Service.HTTPAddress,
+					Handler:           router,
+					ReadHeaderTimeout: 5 * time.Second,
 				}
 				graceCallback(c.Context, logger, cnf.Service.GracePeriod, server.Shutdown)
 				return server.ListenAndServe()

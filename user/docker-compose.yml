@@ -1,5 +1,6 @@
 services:
   user:
+    image: user
     container_name: user
     build:
       context: .
@@ -18,25 +19,8 @@ services:
       user-db:
         condition: service_healthy
 
-  user-workflow-worker:
-    container_name: user-workflow-worker
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command:
-      - workflow-worker
-    environment:
-      USER_DATABASE_HOST: user-db
-      USER_DATABASE_NAME: user
-      USER_DATABASE_USER: user
-      USER_DATABASE_PASSWORD: 1234
-
-      USER_TEMPORAL_HOST: user-temporal:7234
-    depends_on:
-      user-db:
-        condition: service_healthy
-
   user-message-handler:
+    image: user
     container_name: user-message-handler
     build:
       context: .
@@ -50,10 +34,9 @@ services:
       USER_DATABASE_PASSWORD: 1234
 
       USER_AMQP_HOST: user-rmq
+      USER_AMQP_PORT: 5672
       USER_AMQP_USER: guest
       USER_AMQP_PASSWORD: guest
-
-      USER_TEMPORAL_HOST: user-temporal:7234
     depends_on:
       user-db:
         condition: service_healthy
@@ -65,14 +48,14 @@ services:
     container_name: user-db
     command: [ "--max_connections=100" ]
     volumes:
-      - "user-db-model:/var/lib/mysql"
+      - "user-db-data:/var/lib/mysql"
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: yes
       MYSQL_DATABASE: user
       MYSQL_USER: user
       MYSQL_PASSWORD: 1234
     ports:
-      - "3307:3307"
+      - "3306:3306"
     healthcheck:
       test: mysql -h127.0.0.1 -uroot -e 'SELECT 1'
       interval: 10s
@@ -85,86 +68,13 @@ services:
     ports:
       - "15672:15672"
     volumes:
-      - "user-rmq-model:/var/lib/rabbitmq/mnesia"
+      - "user-rmq-data:/var/lib/rabbitmq/mnesia"
     healthcheck:
       test: rabbitmq-diagnostics -q ping
       interval: 1s
       timeout: 3s
       retries: 30
 
-  user-temporal:
-    container_name: user-temporal
-    depends_on:
-      user-db:
-        condition: service_healthy
-    environment:
-      - DB=mysql8
-      - DB_PORT=3306
-      - MYSQL_USER=root
-      - MYSQL_SEEDS=user-db
-      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
-      - TEMPORAL_ADDRESS=user-temporal:7234
-      - TEMPORAL_CLI_ADDRESS=user-temporal:7234
-      - PROMETHEUS_ENDPOINT=0.0.0.0:8000
-    image: temporalio/auto-setup:1.29.1
-    ports:
-      - "7234:7234"
-    volumes:
-      - ./docker/model/temporal/dynamicconfig:/etc/temporal/config/dynamicconfig
-
-  user-temporal-admin-tools:
-    container_name: user-temporal-admin-tools
-    depends_on:
-      - user-temporal
-    environment:
-      - TEMPORAL_ADDRESS=user-temporal:7234
-      - TEMPORAL_CLI_ADDRESS=user-temporal:7234
-    image: temporalio/admin-tools:1.29.1-tctl-1.18.4-cli-1.5.0
-    stdin_open: true
-    tty: true
-
-  user-temporal-ui:
-    container_name: user-temporal-ui
-    depends_on:
-      - user-temporal
-    environment:
-      - TEMPORAL_ADDRESS=user-temporal:7234
-      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
-    image: temporalio/ui:2.34.0
-    ports:
-      - "8080:8080"
-
-  user-prometheus:
-    image: prom/prometheus:v3.8.0
-    container_name: user-prometheus
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - user-prometheus-model:/prometheus
-    depends_on:
-      - user
-      - user-workflow-worker
-      - user-message-handler
-
-  user-grafana:
-    image: grafana/grafana:11.1.4
-    container_name: user-grafana
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - user-grafana-model:/var/lib/grafana
-      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
-    depends_on:
-      - user-prometheus
-
 volumes:
   user-db-data:
   user-rmq-data:
-  user-prometheus-data:
-  user-grafana-data:

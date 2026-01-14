@@ -16,6 +16,7 @@ type UserService interface {
 	StoreUser(ctx context.Context, user appmodel.User) (uuid.UUID, error)
 	SetUserStatus(ctx context.Context, userID uuid.UUID, status int) error
 	FindUser(ctx context.Context, userID uuid.UUID) (appmodel.User, error)
+	DeleteUser(ctx context.Context, userID uuid.UUID, hard bool) error
 }
 
 func NewUserService(
@@ -54,11 +55,16 @@ func (s *userService) StoreUser(ctx context.Context, user appmodel.User) (uuid.U
 	err := s.luow.Execute(ctx, lockNames, func(provider RepositoryProvider) error {
 		domainService := s.domainService(ctx, provider.UserRepository(ctx))
 		if user.UserID == uuid.Nil {
-			uID, err := domainService.CreateUser(user.Login)
+			uID, err := domainService.CreateUser(model.UserStatus(user.Status), user.Login)
 			if err != nil {
 				return err
 			}
 			userID = uID
+		} else {
+			err := domainService.UpdateUserStatus(userID, model.UserStatus(user.Status))
+			if err != nil {
+				return err
+			}
 		}
 
 		err := domainService.UpdateUserEmail(userID, user.Email)
@@ -99,6 +105,12 @@ func (s *userService) FindUser(ctx context.Context, userID uuid.UUID) (appmodel.
 		return nil
 	})
 	return user, err
+}
+
+func (s *userService) DeleteUser(ctx context.Context, userID uuid.UUID, hard bool) error {
+	return s.luow.Execute(ctx, []string{userLock(userID)}, func(provider RepositoryProvider) error {
+		return s.domainService(ctx, provider.UserRepository(ctx)).DeleteUser(userID, hard)
+	})
 }
 
 func (s *userService) domainService(ctx context.Context, repository model.UserRepository) service.UserService {
