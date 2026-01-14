@@ -34,8 +34,6 @@ services:
       USER_AMQP_HOST: inventory-rmq
       USER_AMQP_USER: guest
       USER_AMQP_PASSWORD: guest
-
-      USER_TEMPORAL_HOST: inventory-temporal:7234
     depends_on:
       inventory-db:
         condition: service_healthy

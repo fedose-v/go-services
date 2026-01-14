@@ -21,7 +21,6 @@ type messageHandlerConfig struct {
 	Service  Service  `envconfig:"service"`
 	Database Database `envconfig:"database" required:"true"`
 	AMQP     AMQP     `envconfig:"amqp" required:"true"`
-	Temporal Temporal `envconfig:"temporal" required:"true"`
 }
 
 func messageHandler(logger logging.Logger) *cli.Command {
