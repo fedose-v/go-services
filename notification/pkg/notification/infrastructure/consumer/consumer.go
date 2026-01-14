@@ -124,12 +124,10 @@ func (c *EventConsumer) handle(ctx context.Context, delivery amqp.Delivery) (err
 		return err
 	}
 
-	if subject != "" && body != "" {
-		_, createErr := c.notificationService.CreateNotification(ctx, name, subject, body)
-		if createErr != nil {
-			err = createErr
-			l.Error(err, "failed to create notification")
-		}
+	_, createErr := c.notificationService.CreateNotification(ctx, name, subject, body)
+	if createErr != nil {
+		err = createErr
+		l.Error(err, "failed to create notification")
 	}
 	return err
 }
