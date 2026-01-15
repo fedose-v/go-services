@@ -66,7 +66,7 @@ func (c *EventConsumer) handle(ctx context.Context, delivery amqp.Delivery) (err
 		}
 		if err = json.Unmarshal(delivery.Body, &event); err != nil {
 			err = errors.Wrap(err, "failed to unmarshal user_created")
-			break
+			return err
 		}
 
 		l.Info(fmt.Sprintf("Sending email to new user %s (%s)", event.Login, event.UserID))
@@ -79,7 +79,7 @@ func (c *EventConsumer) handle(ctx context.Context, delivery amqp.Delivery) (err
 		}
 		if err = json.Unmarshal(delivery.Body, &event); err != nil {
 			err = errors.Wrap(err, "failed to unmarshal order_created")
-			break
+			return err
 		}
 
 		orderID, _ := uuid.Parse(event.OrderID)
@@ -93,7 +93,7 @@ func (c *EventConsumer) handle(ctx context.Context, delivery amqp.Delivery) (err
 		}
 		if err = json.Unmarshal(delivery.Body, &event); err != nil {
 			err = errors.Wrap(err, "failed to unmarshal order_paid")
-			break
+			return err
 		}
 		orderID, _ := uuid.Parse(event.OrderID)
 		name = "order_paid"
@@ -107,7 +107,7 @@ func (c *EventConsumer) handle(ctx context.Context, delivery amqp.Delivery) (err
 		}
 		if err = json.Unmarshal(delivery.Body, &event); err != nil {
 			err = errors.Wrap(err, "failed to unmarshal order_cancelled")
-			break
+			return err
 		}
 		orderID, _ := uuid.Parse(event.OrderID)
 		name = "order_cancelled"
