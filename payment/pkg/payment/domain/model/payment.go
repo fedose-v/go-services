@@ -43,6 +43,6 @@ type PaymentRepository interface {
 }
 
 type CustomerBalanceRepository interface {
-	Store(balance *CustomerAccountBalance) (uuid.UUID, error)
+	Store(balance CustomerAccountBalance) (uuid.UUID, error)
 	Find(customerID uuid.UUID) (*CustomerAccountBalance, error)
 }

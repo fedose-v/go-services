@@ -58,8 +58,12 @@ func (p paymentService) CreateTransaction(orderID, customerID uuid.UUID, amount 
 	}
 
 	currentTime := time.Now()
-	balance.Amount -= amount
-	_, err = p.balanceRepo.Store(balance)
+	_, err = p.balanceRepo.Store(model.CustomerAccountBalance{
+		CustomerID: customerID,
+		Amount:     balance.Amount - amount,
+		CreatedAt:  balance.CreatedAt,
+		UpdatedAt:  &currentTime,
+	})
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -76,7 +80,7 @@ func (p paymentService) CreateTransaction(orderID, customerID uuid.UUID, amount 
 		return uuid.Nil, err
 	}
 
-	return transactionID, p.dispatcher.Dispatch(model.TransactionCreated{
+	return transactionID, p.dispatcher.Dispatch(&model.TransactionCreated{
 		TransactionID: transactionID,
 		OrderID:       orderID,
 		CustomerID:    customerID,
@@ -95,9 +99,12 @@ func (p paymentService) CreateRefund(orderID, customerID uuid.UUID, amount float
 	}
 
 	currentTime := time.Now()
-	balance.Amount += amount
-	balance.UpdatedAt = &currentTime
-	_, err = p.balanceRepo.Store(balance)
+	_, err = p.balanceRepo.Store(model.CustomerAccountBalance{
+		CustomerID: customerID,
+		Amount:     balance.Amount + amount,
+		CreatedAt:  balance.CreatedAt,
+		UpdatedAt:  &currentTime,
+	})
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -119,7 +126,7 @@ func (p paymentService) CreateRefund(orderID, customerID uuid.UUID, amount float
 		return uuid.Nil, err
 	}
 
-	return transactionID, p.dispatcher.Dispatch(model.RefundCreated{
+	return transactionID, p.dispatcher.Dispatch(&model.RefundCreated{
 		TransactionID: transactionID,
 		OrderID:       orderID,
 		CustomerID:    customerID,
@@ -128,13 +135,14 @@ func (p paymentService) CreateRefund(orderID, customerID uuid.UUID, amount float
 }
 
 func (p paymentService) CreateCustomerBalance(customerID uuid.UUID) (uuid.UUID, error) {
-	_, err := p.balanceRepo.Find(customerID)
+	balance, err := p.balanceRepo.Find(customerID)
 	if err == nil {
-		return uuid.Nil, ErrBalanceExisted
+		return balance.ID, ErrBalanceExisted
 	}
 
 	currentTime := time.Now()
-	balanceID, err := p.balanceRepo.Store(&model.CustomerAccountBalance{
+	balanceID, err := p.balanceRepo.Store(model.CustomerAccountBalance{
+		ID:         uuid.New(),
 		CustomerID: customerID,
 		Amount:     0,
 		CreatedAt:  currentTime,
@@ -143,7 +151,7 @@ func (p paymentService) CreateCustomerBalance(customerID uuid.UUID) (uuid.UUID, 
 		return uuid.Nil, err
 	}
 
-	return balanceID, p.dispatcher.Dispatch(model.CustomerAccountCreated{
+	return balanceID, p.dispatcher.Dispatch(&model.CustomerAccountCreated{
 		CustomerID: customerID,
 		CreatedAt:  currentTime,
 	})
@@ -160,14 +168,18 @@ func (p paymentService) UpdateBalance(customerID uuid.UUID, amount float64) erro
 	}
 
 	currentTime := time.Now()
-	balance.Amount = amount
-	balance.UpdatedAt = &currentTime
-	_, err = p.balanceRepo.Store(balance)
+	_, err = p.balanceRepo.Store(model.CustomerAccountBalance{
+		ID:         balance.ID,
+		CustomerID: balance.CustomerID,
+		Amount:     amount,
+		CreatedAt:  balance.CreatedAt,
+		UpdatedAt:  &currentTime,
+	})
 	if err != nil {
 		return err
 	}
 
-	return p.dispatcher.Dispatch(model.CustomerAmountUpdated{
+	return p.dispatcher.Dispatch(&model.CustomerAmountUpdated{
 		CustomerID: customerID,
 		NewAmount:  amount,
 	})

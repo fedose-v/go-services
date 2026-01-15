@@ -53,13 +53,12 @@ func service(logger logging.Logger) *cli.Command {
 
 			libUoW := mysql.NewUnitOfWork(databaseConnectionPool, inframysql.NewRepositoryProvider)
 			libLUow := mysql.NewLockableUnitOfWork(libUoW, mysql.NewLocker(databaseConnectionPool))
-			uow := inframysql.NewUnitOfWork(libUoW)
 			luow := inframysql.NewLockableUnitOfWork(libLUow)
 			eventDispatcher := outbox.NewEventDispatcher(appID, integrationevent.TransportName, integrationevent.NewEventSerializer(), libUoW)
 
 			paymentPublicAPIServer := transport.NewPaymentInternalAPI(
 				query.NewAccountBalanceQueryService(databaseConnector.TransactionalClient()),
-				appservice.NewPaymentService(uow, luow, eventDispatcher),
+				appservice.NewPaymentService(luow, eventDispatcher),
 			)
 
 			errGroup := errgroup.Group{}

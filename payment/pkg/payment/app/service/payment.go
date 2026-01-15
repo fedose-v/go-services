@@ -18,19 +18,16 @@ type PaymentService interface {
 }
 
 func NewPaymentService(
-	uow UnitOfWork,
 	luow LockableUnitOfWork,
 	eventDispatcher outbox.EventDispatcher[outbox.Event],
 ) PaymentService {
 	return &paymentService{
-		uow:             uow,
 		luow:            luow,
 		eventDispatcher: eventDispatcher,
 	}
 }
 
 type paymentService struct {
-	uow             UnitOfWork
 	luow            LockableUnitOfWork
 	eventDispatcher outbox.EventDispatcher[outbox.Event]
 }
@@ -40,14 +37,11 @@ func (p *paymentService) StoreUserBalance(ctx context.Context, balance appmodel.
 	err := p.luow.Execute(ctx, []string{"balance_" + balance.CustomerID.String()}, func(provider RepositoryProvider) error {
 		domainService := p.domainService(ctx, provider.PaymentRepository(ctx), provider.AccountBalanceRepository(ctx))
 
-		domainBalance, err := provider.AccountBalanceRepository(ctx).Find(balance.CustomerID)
-		balanceID = domainBalance.ID
-		if errors.Is(err, model.ErrPaymentNotFound) {
-			balanceID, err = domainService.CreateCustomerBalance(balance.CustomerID)
+		domainBalanceID, createErr := domainService.CreateCustomerBalance(balance.CustomerID)
+		if !errors.Is(createErr, service.ErrBalanceExisted) {
+			return createErr
 		}
-		if err != nil {
-			return err
-		}
+		balanceID = domainBalanceID
 
 		return domainService.UpdateBalance(balance.CustomerID, balance.Amount)
 	})

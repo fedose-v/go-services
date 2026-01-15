@@ -24,8 +24,7 @@ type balanceRepository struct {
 	client mysql.ClientContext
 }
 
-func (b balanceRepository) Store(balance *model.CustomerAccountBalance) (uuid.UUID, error) {
-	balanceID := uuid.New()
+func (b balanceRepository) Store(balance model.CustomerAccountBalance) (uuid.UUID, error) {
 	_, err := b.client.ExecContext(b.ctx,
 		`
 	INSERT INTO customer_account_balance (id, customer_id, amount, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
@@ -34,8 +33,8 @@ func (b balanceRepository) Store(balance *model.CustomerAccountBalance) (uuid.UU
 		created_at=VALUES(created_at),
 		updated_at=VALUES(updated_at)
 	`,
-		balanceID,
-		balance.CustomerID,
+		balance.ID[:],
+		balance.CustomerID[:],
 		balance.Amount,
 		balance.CreatedAt,
 		balance.UpdatedAt,
@@ -43,12 +42,12 @@ func (b balanceRepository) Store(balance *model.CustomerAccountBalance) (uuid.UU
 	if err != nil {
 		return uuid.Nil, errors.WithStack(err)
 	}
-	return balanceID, nil
+	return balance.ID, nil
 }
 
 func (b balanceRepository) Find(customerID uuid.UUID) (*model.CustomerAccountBalance, error) {
 	balance := struct {
-		ID         uuid.UUID
+		ID         uuid.UUID `db:"id"`
 		CustomerID uuid.UUID `db:"customer_id"`
 		Amount     float64   `db:"amount"`
 		CreatedAt  time.Time `db:"created_at"`
@@ -58,12 +57,12 @@ func (b balanceRepository) Find(customerID uuid.UUID) (*model.CustomerAccountBal
 	err := b.client.GetContext(
 		b.ctx,
 		&balance,
-		`SELECT customer_id, amount, created_at, updated_at FROM customer_account_balance WHERE customer_id = ?`,
+		`SELECT id, customer_id, amount, created_at, updated_at FROM customer_account_balance WHERE customer_id = ?`,
 		customerID,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.WithStack(model.ErrBalanceNotFound)
+			return nil, model.ErrBalanceNotFound
 		}
 		return nil, errors.WithStack(err)
 	}

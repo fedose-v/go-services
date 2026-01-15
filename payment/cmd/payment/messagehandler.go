@@ -13,7 +13,9 @@ import (
 	"github.com/urfave/cli/v2"
 	"golang.org/x/sync/errgroup"
 
+	"payment/pkg/payment/infrastructure/consumer"
 	"payment/pkg/payment/infrastructure/integrationevent"
+	inframysql "payment/pkg/payment/infrastructure/mysql"
 )
 
 type messageHandlerConfig struct {
@@ -52,6 +54,31 @@ func messageHandler(logger logging.Logger) *cli.Command {
 					Durable: true,
 				},
 				nil,
+				nil,
+			)
+
+			libUoW := mysql.NewUnitOfWork(databaseConnectionPool, inframysql.NewRepositoryProvider)
+			eventDispatcher := outbox.NewEventDispatcher(appID, integrationevent.TransportName, integrationevent.NewEventSerializer(), libUoW)
+
+			eventConsumer, err := consumer.NewEventConsumer(c.Context, amqpConnection, databaseConnectionPool, logger, eventDispatcher)
+			if err != nil {
+				return err
+			}
+
+			queueConfig := &amqp.QueueConfig{
+				Name:    "payment_events",
+				Durable: true,
+			}
+			bindConfig := &amqp.BindConfig{
+				QueueName:    "payment_events",
+				ExchangeName: "domain_event_exchange",
+				RoutingKeys:  []string{"user.*"},
+			}
+			amqpConnection.Consumer(
+				c.Context,
+				eventConsumer.Handler(),
+				queueConfig,
+				bindConfig,
 				nil,
 			)
 			err = amqpConnection.Start()

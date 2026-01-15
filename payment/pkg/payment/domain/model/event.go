@@ -14,7 +14,7 @@ type TransactionCreated struct {
 }
 
 func (e TransactionCreated) Type() string {
-	return "TransactionCreated"
+	return "transaction_created"
 }
 
 type RefundCreated struct {
@@ -25,7 +25,7 @@ type RefundCreated struct {
 }
 
 func (e RefundCreated) Type() string {
-	return "RefundCreated"
+	return "refund_created"
 }
 
 type CustomerAmountUpdated struct {
@@ -34,7 +34,7 @@ type CustomerAmountUpdated struct {
 }
 
 func (e CustomerAmountUpdated) Type() string {
-	return "CustomerAmountUpdated"
+	return "customer_amount_updated"
 }
 
 type CustomerAccountCreated struct {
@@ -43,5 +43,5 @@ type CustomerAccountCreated struct {
 }
 
 func (e CustomerAccountCreated) Type() string {
-	return "CustomerAccountCreated"
+	return "customer_account_created"
 }

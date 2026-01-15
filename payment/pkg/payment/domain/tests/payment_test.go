@@ -273,8 +273,8 @@ type mockCustomerBalanceRepository struct {
 	store map[uuid.UUID]*model.CustomerAccountBalance
 }
 
-func (m *mockCustomerBalanceRepository) Store(balance *model.CustomerAccountBalance) (uuid.UUID, error) {
-	m.store[balance.CustomerID] = balance
+func (m *mockCustomerBalanceRepository) Store(balance model.CustomerAccountBalance) (uuid.UUID, error) {
+	m.store[balance.CustomerID] = &balance
 	return balance.ID, nil
 }
 

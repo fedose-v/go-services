@@ -23,6 +23,12 @@ func (s eventSerializer) Serialize(event outbox.Event) (string, error) {
 			CreatedAt:  e.CreatedAt.Unix(),
 		})
 		return string(b), errors.WithStack(err)
+	case *model.CustomerAmountUpdated:
+		b, err := json.Marshal(AccountUpdated{
+			CustomerID: e.CustomerID.String(),
+			NewAmount:  e.NewAmount,
+		})
+		return string(b), errors.WithStack(err)
 	default:
 		return "", errors.Errorf("unknown event %q", event.Type())
 	}
@@ -31,4 +37,9 @@ func (s eventSerializer) Serialize(event outbox.Event) (string, error) {
 type AccountCreated struct {
 	CustomerID string `json:"customer_id"`
 	CreatedAt  int64  `json:"created_at"`
+}
+
+type AccountUpdated struct {
+	CustomerID string  `json:"customer_id"`
+	NewAmount  float64 `json:"new_amount"`
 }
