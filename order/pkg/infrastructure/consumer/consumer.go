@@ -9,7 +9,6 @@ import (
 	"gitea.xscloud.ru/xscloud/golib/pkg/infrastructure/amqp"
 	"gitea.xscloud.ru/xscloud/golib/pkg/infrastructure/mysql"
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 
 	appservice "order/pkg/app/service"
 	"order/pkg/domain/model"
@@ -83,7 +82,7 @@ func (c *EventConsumer) handle(ctx context.Context, delivery amqp.Delivery) (err
 			return err
 		}
 		l.Info("user synced successfully")
-		return errors.New("user processed")
+		return nil
 
 	case "product_created", "product_updated":
 		var event struct {
@@ -93,13 +92,13 @@ func (c *EventConsumer) handle(ctx context.Context, delivery amqp.Delivery) (err
 		}
 		if err = json.Unmarshal(delivery.Body, &event); err != nil {
 			l.Error(err, "failed to unmarshal product event")
-			return nil
+			return err
 		}
 
 		productID, parseErr := uuid.Parse(event.ProductID)
 		if parseErr != nil {
 			l.Error(parseErr, "invalid product id in product event")
-			return nil
+			return err
 		}
 
 		storeErr := c.dataSyncService.SyncProduct(ctx, model.LocalProduct{
@@ -109,10 +108,10 @@ func (c *EventConsumer) handle(ctx context.Context, delivery amqp.Delivery) (err
 		})
 		if storeErr != nil {
 			l.Error(storeErr, "failed to sync product")
-			return nil
+			return err
 		}
 		l.Info("product synced successfully")
-		return errors.New("product processed")
+		return nil
 
 	default:
 		l.WithField("type", delivery.Type).Info("unhandled event type")
